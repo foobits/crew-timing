@@ -4,6 +4,12 @@ export type ParseResult =
   | { ok: true; value: Milliseconds }
   | { ok: false; error: string };
 
+export function isParseFailure(
+  result: ParseResult,
+): result is { ok: false; error: string } {
+  return !result.ok;
+}
+
 export type SignedMilliseconds = {
   ms: Milliseconds;
   negative: boolean;

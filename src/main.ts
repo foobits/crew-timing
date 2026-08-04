@@ -18,6 +18,7 @@ import {
 } from "./lib/race-state";
 import {
   formatRestoreTime,
+  isParseFailure,
   parseElapsed,
   parseGap,
   parseTimestamp,
@@ -345,7 +346,7 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
       return;
     }
     const parsed = parseTimestamp(value);
-    if (!parsed.ok) {
+    if (isParseFailure(parsed)) {
       announce(parsed.error);
       render();
       return;
@@ -371,7 +372,7 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
       return;
     }
     const parsed = parseElapsed(value);
-    if (!parsed.ok) {
+    if (isParseFailure(parsed)) {
       announce(parsed.error);
       render();
       return;
@@ -429,7 +430,7 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
           if (lane.lane !== laneNum) return lane;
           if (!value) return { ...lane, gapMs: null, gapNegative: false };
           const parsed = parseGap(value);
-          if (!parsed.ok) {
+          if (isParseFailure(parsed)) {
             announce(parsed.error);
             return lane;
           }
