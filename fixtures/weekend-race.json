@@ -1,0 +1,20 @@
+{
+  "eventLabel": "Sample Heat — replace with your regatta data",
+  "startTimestamp": "13:08:01.491",
+  "referenceLane": 3,
+  "referenceElapsed": "02:23.450",
+  "lanes": [
+    { "lane": 1, "status": "empty", "gap": null },
+    { "lane": 2, "status": "empty", "gap": null },
+    { "lane": 3, "status": "active", "gap": "0:00.000" },
+    { "lane": 4, "status": "empty", "gap": null },
+    { "lane": 5, "status": "active", "gap": "+0:02.340" },
+    { "lane": 6, "status": "empty", "gap": null },
+    { "lane": 7, "status": "empty", "gap": null },
+    { "lane": 8, "status": "empty", "gap": null }
+  ],
+  "expectedResults": [
+    { "lane": 3, "finish": "13:10:24.941", "elapsed": "02:23.450" },
+    { "lane": 5, "finish": "13:10:27.281", "elapsed": "02:25.790" }
+  ]
+}
