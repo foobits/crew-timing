@@ -1,11 +1,15 @@
 import { test, expect } from "@playwright/test";
 import {
   calculate,
+  copyLaneTimestamp,
+  expectGapSignNegative,
+  expectLaneCopied,
   expectNoReferenceElapsedError,
   expectResultsVisible,
   fillTimeInput,
   gotoApp,
   setInputWithoutCommit,
+  tapGapSign,
 } from "./helpers";
 import { canWebKitNavigate } from "./webkit-probe";
 
@@ -39,8 +43,12 @@ test.describe("mobile race flow", () => {
     await setInputWithoutCommit(page, "#start-ts", "10:05:03.111");
     await setInputWithoutCommit(page, "#ref-elapsed", "01:23.450");
 
-    await page.locator('[data-gap-sign="2"]').click();
-    await setInputWithoutCommit(page, '[data-gap-input="2"]', "2.511");
+    const lane2 = page.locator('[data-gap-input="2"]');
+    await lane2.click();
+    await lane2.pressSequentially("2.511");
+    await tapGapSign(page, 2);
+
+    await expectGapSignNegative(page, 2);
 
     await calculate(page);
 
@@ -48,6 +56,20 @@ test.describe("mobile race flow", () => {
     await expect(page.locator('[data-result-lane="2"] .elapsed-check')).toContainText(
       "01:20.939",
     );
+  });
+
+  test("shows green copied styling after copy timestamp", async ({ page }) => {
+    await gotoApp(page);
+
+    await setInputWithoutCommit(page, "#start-ts", "10:05:03.111");
+    await setInputWithoutCommit(page, "#ref-elapsed", "01:23.450");
+    await setInputWithoutCommit(page, '[data-gap-input="2"]', "2.511");
+
+    await calculate(page);
+    await expectResultsVisible(page, 2);
+
+    await copyLaneTimestamp(page, 2);
+    await expectLaneCopied(page, 2);
   });
 
   test("auto-formats sheet-style MM:SS digits in split fields", async ({ page }) => {

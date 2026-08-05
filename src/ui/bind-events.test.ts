@@ -28,9 +28,76 @@ describe("bindEventsOnce", () => {
 
   it("toggles gap sign on lane rows", () => {
     const app = mountBoundApp(sampleAppState());
-    app.root.querySelector<HTMLElement>('[data-gap-sign="2"]')?.click();
+    app.root
+      .querySelector<HTMLElement>('[data-gap-sign="2"]')
+      ?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
     expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapNegative).toBe(true);
     expect(app.scheduleRender).toHaveBeenCalledWith({ type: "lane-row", lane: 2 });
+  });
+
+  it("toggles gap sign on the first tap while a gap value is focused", () => {
+    const app = mountBoundApp(sampleAppState());
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "2.511";
+    lane2.focus();
+
+    app.root
+      .querySelector<HTMLElement>('[data-gap-sign="2"]')
+      ?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+
+    const lane = app.getState().race.lanes.find((entry) => entry.lane === 2);
+    expect(lane?.gapNegative).toBe(true);
+    expect(lane?.gapMs).toBe(2_511);
+    expect(
+      app.root
+        .querySelector('[data-gap-sign="2"]')
+        ?.classList.contains("gap-sign-btn--negative"),
+    ).toBe(true);
+  });
+
+  it("does not toggle gap sign from click alone (mobile uses pointerdown)", () => {
+    const app = mountBoundApp(sampleAppState());
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "2.511";
+    lane2.focus();
+
+    app.root.querySelector<HTMLElement>('[data-gap-sign="2"]')?.click();
+
+    const lane = app.getState().race.lanes.find((entry) => entry.lane === 2);
+    expect(lane?.gapNegative).toBe(false);
+    expect(lane?.gapMs).toBe(2_511);
+  });
+
+  it("prevents default on gap sign pointerdown so blur does not eat the first tap", () => {
+    const app = mountBoundApp(sampleAppState());
+    const sign = app.root.querySelector<HTMLElement>('[data-gap-sign="2"]')!;
+    const event = new PointerEvent("pointerdown", { bubbles: true, cancelable: true });
+    const preventDefault = vi.spyOn(event, "preventDefault");
+
+    sign.dispatchEvent(event);
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapNegative).toBe(true);
+  });
+
+  it("toggles gap sign back to positive while the gap input stays focused", () => {
+    const app = mountBoundApp(sampleAppState());
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "2.511";
+    lane2.focus();
+
+    const sign = () =>
+      app.root
+        .querySelector<HTMLElement>('[data-gap-sign="2"]')
+        ?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+
+    sign();
+    sign();
+
+    const lane = app.getState().race.lanes.find((entry) => entry.lane === 2);
+    expect(lane?.gapNegative).toBe(false);
+    expect(lane?.gapMs).toBe(2_511);
+    expect(document.activeElement).toBe(app.root.querySelector('[data-gap-input="2"]'));
   });
 
   it("marks a lane empty from the status toggle", () => {
@@ -119,6 +186,27 @@ describe("bindEventsOnce", () => {
     app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')?.click();
     await vi.waitFor(() => expect(app.getState().copiedLanes.has(2)).toBe(true));
     expect(clipboard.copyText).toHaveBeenCalled();
+    expect(
+      app.root.querySelector('[data-result-lane="2"]')?.classList.contains("copied"),
+    ).toBe(true);
+    expect(app.renderNow).toHaveBeenCalledWith({ type: "copied-lane", lane: 2 });
+  });
+
+  it("does not mark a lane copied when clipboard write fails", async () => {
+    vi.mocked(clipboard.copyText).mockResolvedValue(false);
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+
+    app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')?.click();
+    await vi.waitFor(() =>
+      expect(document.getElementById("toast")?.textContent).toBe("Select and copy manually"),
+    );
+
+    expect(app.getState().copiedLanes.has(2)).toBe(false);
+    expect(
+      app.root.querySelector('[data-result-lane="2"]')?.classList.contains("copied"),
+    ).toBe(false);
+    expect(app.renderNow).not.toHaveBeenCalledWith({ type: "copied-lane", lane: 2 });
   });
 
   it("copies all results when valid", async () => {
@@ -217,17 +305,6 @@ describe("bindEventsOnce", () => {
     app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
     expect(app.getState().race.referenceLane).toBe(4);
     expect(app.getState().confirmAction).toBeNull();
-  });
-
-  it("announces manual copy fallback when clipboard write fails", async () => {
-    vi.mocked(clipboard.copyText).mockResolvedValue(false);
-    const app = mountBoundApp(sampleAppState({ showResults: true }));
-    applyRenderScope(app.root, app.getState(), { type: "results" });
-
-    app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')?.click();
-    await vi.waitFor(() =>
-      expect(document.getElementById("toast")?.textContent).toBe("Select and copy manually"),
-    );
   });
 
   it("persists start confirmation and gap blur updates", () => {

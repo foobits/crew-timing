@@ -27,6 +27,7 @@ import {
   commitAllFormFields,
   updateRaceDraft,
 } from "../app/form-sync";
+import { applyLaneGapToRace, isFieldApplyFailure } from "../lib/form-commit";
 import { clearUndoSnapshot, saveUndoSnapshot } from "../app/state";
 import type { AppState, ResultsSort } from "../app/types";
 import { announce } from "./toast";
@@ -43,6 +44,43 @@ export interface AppActions {
 export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
   const { getState, setState, updateRace, scheduleRender, renderNow, getComputed } = actions;
 
+  function toggleGapSign(laneNum: number): void {
+    const gapInput = root.querySelector<HTMLInputElement>(`[data-gap-input="${laneNum}"]`);
+
+    updateRace((race) => {
+      let nextRace = race;
+      if (gapInput && !gapInput.readOnly) {
+        const result = applyLaneGapToRace(race, laneNum, gapInput.value);
+        if (!isFieldApplyFailure(result)) {
+          nextRace = result.race;
+        }
+      }
+
+      return {
+        ...nextRace,
+        lanes: nextRace.lanes.map((lane) =>
+          lane.lane === laneNum ? { ...lane, gapNegative: !lane.gapNegative } : lane,
+        ),
+      };
+    }, { type: "lane-row", lane: laneNum });
+  }
+
+  // Mobile Safari blurs a focused gap input on the first tap outside; click never fires.
+  root.addEventListener(
+    "pointerdown",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const gapSign = target.closest<HTMLElement>("[data-gap-sign]");
+      if (!gapSign?.dataset.gapSign) return;
+
+      event.preventDefault();
+      toggleGapSign(Number(gapSign.dataset.gapSign));
+    },
+    true,
+  );
+
   root.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -50,21 +88,6 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
     const actionEl = target.closest<HTMLElement>("[data-action]");
     if (actionEl?.dataset.action) {
       handleAction(actionEl.dataset.action, actionEl);
-      return;
-    }
-
-    const gapSign = target.closest<HTMLElement>("[data-gap-sign]");
-    if (gapSign?.dataset.gapSign) {
-      const laneNum = Number(gapSign.dataset.gapSign);
-      updateRace(
-        (race) => ({
-          ...race,
-          lanes: race.lanes.map((lane) =>
-            lane.lane === laneNum ? { ...lane, gapNegative: !lane.gapNegative } : lane,
-          ),
-        }),
-        { type: "lane-row", lane: laneNum },
-      );
       return;
     }
 
@@ -352,7 +375,7 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         return { ...s, copiedLanes };
       });
       announce(`Copied ${value}`);
-      scheduleRender({ type: "copied-lane", lane });
+      renderNow({ type: "copied-lane", lane });
     } else {
       announce("Select and copy manually");
     }

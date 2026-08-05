@@ -1,11 +1,15 @@
 import { test, expect } from "@playwright/test";
 import {
   calculate,
+  copyLaneTimestamp,
+  expectGapSignNegative,
+  expectLaneCopied,
   expectNoReferenceElapsedError,
   expectResultsVisible,
   fillLaneGap,
   fillRaceContext,
   gotoApp,
+  tapGapSign,
 } from "./helpers";
 
 test.describe("desktop race flow", () => {
@@ -35,6 +39,29 @@ test.describe("desktop race flow", () => {
     await expect(page.locator('[data-result-lane="2"] .elapsed-check')).toContainText(
       "01:20.939",
     );
+  });
+
+  test("toggles gap sign on first tap while gap input is focused", async ({ page }) => {
+    await gotoApp(page);
+    await fillRaceContext(page);
+
+    const lane2 = page.locator('[data-gap-input="2"]');
+    await lane2.click();
+    await lane2.pressSequentially("2.511");
+    await page.locator('[data-gap-sign="2"]').click();
+
+    await expectGapSignNegative(page, 2);
+  });
+
+  test("shows green copied styling after copy timestamp", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await gotoApp(page);
+    await fillRaceContext(page);
+    await fillLaneGap(page, 2, "2.511");
+    await calculate(page);
+
+    await copyLaneTimestamp(page, 2);
+    await expectLaneCopied(page, 2);
   });
 });
 
