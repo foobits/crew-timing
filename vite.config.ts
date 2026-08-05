@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { resolveAppVersion } from "./src/app/resolve-app-version";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8")) as {
   version: string;
@@ -9,7 +10,9 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 export default defineConfig({
   base: "./",
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(
+      resolveAppVersion(pkg.version, process.env.APP_BUILD_NUMBER),
+    ),
     __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
   },
   plugins: [

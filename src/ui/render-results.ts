@@ -4,6 +4,9 @@ import { PLACE_LABELS } from "../app/constants";
 import type { ComputedRace, LaneResult } from "../lib/race-state";
 import { renderButton, renderToggleGroup } from "./components";
 
+export const COPY_TIMESTAMP_LABEL = "Copy timestamp";
+export const COPIED_UNMARK_LABEL = "Copied — tap to unmark";
+
 function renderResultsSortToggle(resultsSort: AppState["resultsSort"]): string {
   return renderToggleGroup({
     ariaLabel: "Sort results",
@@ -29,21 +32,27 @@ function renderResultsSortToggle(resultsSort: AppState["resultsSort"]): string {
 function renderResultCard(state: AppState, result: LaneResult): string {
   const place = PLACE_LABELS[result.place] ?? `${result.place}th`;
   const tied = result.tied ? " (tie)" : "";
-  const copied = state.copiedLanes.has(result.lane) ? " copied" : "";
+  const copied = state.copiedLanes.has(result.lane);
+  const copiedClass = copied ? " copied" : "";
+  const copyLabel = copied ? COPIED_UNMARK_LABEL : COPY_TIMESTAMP_LABEL;
 
   return `
-    <article class="result-card${copied}" data-result-lane="${result.lane}">
+    <article class="result-card${copiedClass}" data-result-lane="${result.lane}">
       <div class="result-place">${place} · Lane ${result.lane}${tied}</div>
       <div class="timestamp-label">CrewTimer finish timestamp</div>
       <div class="timestamp-value">${result.finishFormatted}</div>
       ${renderButton({
-        label: "Copy timestamp",
+        label: copyLabel,
         variant: "copy",
         data: { "copy-lane": result.lane, "copy-value": result.finishFormatted },
       })}
       <div class="elapsed-check">Calculated elapsed time: ${result.elapsedFormatted}</div>
     </article>
   `;
+}
+
+export function renderResultCardHtml(state: AppState, result: LaneResult): string {
+  return renderResultCard(state, result);
 }
 
 export function renderResultsBody(

@@ -300,7 +300,7 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         (document.activeElement as HTMLElement | null)?.blur();
         {
           const { state } = commitAllFormFields(getState(), root);
-          setState(() => ({ ...state, showResults: true }));
+          setState(() => ({ ...state, showResults: true, copiedLanes: new Set() }));
           renderNow({ type: "results" });
           document.getElementById("results-card")?.scrollIntoView({
             behavior: isInstantScrollPreferred() ? "auto" : "smooth",
@@ -366,6 +366,18 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
 
   async function handleCopyLane(btn: HTMLButtonElement): Promise<void> {
     const lane = Number(btn.dataset.copyLane);
+    const state = getState();
+
+    if (state.copiedLanes.has(lane)) {
+      setState((s) => {
+        const copiedLanes = new Set(s.copiedLanes);
+        copiedLanes.delete(lane);
+        return { ...s, copiedLanes };
+      });
+      renderNow({ type: "copied-lane", lane });
+      return;
+    }
+
     const value = btn.dataset.copyValue ?? "";
     const ok = await copyText(value);
     if (ok) {

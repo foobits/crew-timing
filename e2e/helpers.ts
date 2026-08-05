@@ -63,6 +63,14 @@ export async function expectLaneCopied(page: Page, lane: number): Promise<void> 
   await expect(page.locator(`[data-result-lane="${lane}"]`)).toHaveClass(/copied/);
 }
 
+export async function expectLaneNotCopied(page: Page, lane: number): Promise<void> {
+  await expect(page.locator(`[data-result-lane="${lane}"]`)).not.toHaveClass(/copied/);
+}
+
+export async function unmarkLaneCopy(page: Page, lane: number): Promise<void> {
+  await page.locator(`[data-copy-lane="${lane}"]`).click();
+}
+
 export async function expectGapSignNegative(page: Page, lane: number): Promise<void> {
   await expect(page.locator(`[data-gap-sign="${lane}"]`)).toHaveClass(/gap-sign-btn--negative/);
 }

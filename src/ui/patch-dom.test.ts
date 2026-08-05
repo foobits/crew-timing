@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as raceState from "../lib/race-state";
-import { touchRace } from "../lib/race-state";
+import { computeRace, touchRace } from "../lib/race-state";
 import { createInitialState } from "../app/state";
 import { sampleAppState } from "../test/fixtures";
 import {
@@ -11,7 +11,7 @@ import {
   invalidateComputedRace,
   patchBanners,
   patchContext,
-  patchCopiedLane,
+  patchResultCard,
   patchDialog,
   patchFooter,
   patchLaneCountControls,
@@ -65,14 +65,37 @@ describe("getComputedRace", () => {
   });
 });
 
-describe("patchCopiedLane", () => {
-  it("adds the copied class to a result card", () => {
+describe("patchResultCard", () => {
+  it("re-renders a result card with copied styling and unmark label", () => {
     const root = document.createElement("div");
-    root.innerHTML = `<article class="result-card" data-result-lane="2"></article>`;
+    document.body.appendChild(root);
+    renderFullApp(root, sampleAppState({ showResults: true }));
 
-    patchCopiedLane(root, 2);
+    const state = sampleAppState({ showResults: true, copiedLanes: new Set([2]) });
+    const computed = computeRace(state.race);
 
-    expect(root.querySelector('[data-result-lane="2"]')?.classList.contains("copied")).toBe(true);
+    patchResultCard(root, state, 2, computed);
+
+    const card = root.querySelector('[data-result-lane="2"]');
+    expect(card?.classList.contains("copied")).toBe(true);
+    expect(card?.querySelector('[data-copy-lane="2"]')?.textContent).toBe(
+      "Copied — tap to unmark",
+    );
+  });
+
+  it("re-renders a result card without copied styling after unmark", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    renderFullApp(root, sampleAppState({ showResults: true, copiedLanes: new Set([2]) }));
+
+    const state = sampleAppState({ showResults: true, copiedLanes: new Set() });
+    const computed = computeRace(state.race);
+
+    patchResultCard(root, state, 2, computed);
+
+    const card = root.querySelector('[data-result-lane="2"]');
+    expect(card?.classList.contains("copied")).toBe(false);
+    expect(card?.querySelector('[data-copy-lane="2"]')?.textContent).toBe("Copy timestamp");
   });
 });
 
@@ -196,7 +219,8 @@ describe("applyRenderScope", () => {
     patchFooter(sampleAppState());
     expect(document.getElementById("footer-actions")).not.toBeNull();
 
-    patchCopiedLane(root, 2);
+    const preResultsState = sampleAppState({ showResults: true });
+    patchResultCard(root, preResultsState, 2, getComputedRace(preResultsState));
     expect(root.querySelector('[data-result-lane="2"]')).toBeNull();
 
     const resultsState = sampleAppState({ showResults: true });
@@ -213,11 +237,12 @@ describe("applyRenderScope", () => {
     const root = document.createElement("div");
     renderFullApp(root, sampleAppState({ showResults: true }));
 
-    applyRenderScope(root, sampleAppState({ copiedLanes: new Set([2]) }), {
+    applyRenderScope(root, sampleAppState({ showResults: true, copiedLanes: new Set([2]) }), {
       type: "copied-lane",
       lane: 2,
     });
     expect(root.querySelector('[data-result-lane="2"]')?.classList.contains("copied")).toBe(true);
+    expect(root.querySelector('[data-copy-lane="2"]')?.textContent).toBe("Copied — tap to unmark");
 
     applyRenderScope(root, sampleAppState({ restoredBanner: true }), { type: "banners" });
     expect(root.querySelector("#app-banners")?.textContent).toContain("Restored race draft");

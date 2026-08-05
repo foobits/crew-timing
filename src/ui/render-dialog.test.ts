@@ -62,6 +62,6 @@ describe("renderAppMeta", () => {
 
     const meta = document.getElementById("app-meta");
     expect(meta).not.toBeNull();
-    expect(meta?.textContent).toMatch(/^v\d+\.\d+\.\d+ · \d{4}-\d{2}-\d{2}$/);
+    expect(meta?.textContent).toMatch(/^v[\d.]+(?:-dev)? · \d{4}-\d{2}-\d{2}$/);
   });
 });
