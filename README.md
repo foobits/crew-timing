@@ -67,9 +67,11 @@ npm run test:watch     # Vitest watch mode
 | `src/ui/` | Event binding, render helpers, partial DOM patches, components, focus/toast |
 | `e2e/` | Desktop + mobile race flows |
 
-**182 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~95% statements / ~98% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
+**184 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~95% statements / ~98% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
 
-**Local E2E note:** Mobile Safari tests may skip on macOS 26+ when Playwright WebKit cannot reach the preview server. CI on Ubuntu runs the full suite (desktop + mobile).
+**Local E2E note:** Mobile Safari tests may skip on macOS 26+ when Playwright WebKit cannot reach the preview server. **CI on Ubuntu is the source of truth** for mobile E2E (see PR template). Desktop + fixture regression run locally via `npm run test:e2e`.
+
+A **build label** (`v1.0.0 · YYYY-MM-DD`) appears at the bottom of the app after each deploy so you can confirm your phone picked up the latest PWA.
 
 ## Deploy
 
@@ -87,7 +89,7 @@ Test in a **non-scoring event** before relying on this app:
 
 ## QA fixture
 
-[`fixtures/weekend-race.json`](fixtures/weekend-race.json) has sample input and expected outputs for regression testing.
+[`fixtures/weekend-race.json`](fixtures/weekend-race.json) has sample input and expected outputs for regression testing. `e2e/fixture.spec.ts` loads this file in CI to guard the core conversion contract.
 
 ## Notes
 

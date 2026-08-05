@@ -1,4 +1,5 @@
 import type { AppState, ConfirmAction } from "../app/types";
+import { formatBuildLabel } from "../app/build-info";
 import { renderButton } from "./components";
 
 const CONFIRM_MESSAGES: Record<ConfirmAction, string> = {
@@ -37,4 +38,16 @@ export function renderFooter(showFooter: boolean): void {
     ${renderButton({ label: "Clear judge data", variant: "secondary", action: "clear-judge" })}
   `;
   document.body.appendChild(footerEl);
+}
+
+export function renderAppMeta(): void {
+  let meta = document.getElementById("app-meta");
+  if (!meta) {
+    meta = document.createElement("footer");
+    meta.id = "app-meta";
+    meta.className = "app-meta";
+    meta.setAttribute("aria-label", "App version");
+    document.body.appendChild(meta);
+  }
+  meta.textContent = formatBuildLabel();
 }

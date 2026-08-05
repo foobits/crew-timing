@@ -24,11 +24,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Mobile Safari E2E runs here on Ubuntu — local macOS 26+ may skip mobile tests.
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:coverage
       - run: npm run test:e2e
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 

@@ -571,7 +571,7 @@ button:focus-visible {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 24px;
   background: rgba(247, 250, 252, 0.96);
   border-top: 1px solid var(--border);
   padding: 12px;
@@ -580,6 +580,22 @@ button:focus-visible {
   max-width: 640px;
   margin: 0 auto;
   backdrop-filter: blur(8px);
+  z-index: 2;
+}
+
+.app-meta {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 4px 12px 6px;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--muted, #718096);
+  pointer-events: none;
 }
 
 .footer-actions.hidden {

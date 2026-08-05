@@ -8,7 +8,7 @@ import {
   renderRestoredBanner,
   renderUndoBanner,
 } from "./render-context";
-import { renderConfirmDialog, renderFooter } from "./render-dialog";
+import { renderConfirmDialog, renderFooter, renderAppMeta } from "./render-dialog";
 import { renderLaneRowHtml, renderLanesSection } from "./render-lanes";
 import {
   renderResultsSection,
@@ -114,6 +114,7 @@ export function patchDialog(root: HTMLElement, state: AppState): void {
 
 export function patchFooter(state: AppState): void {
   renderFooter(hasRaceData(state.race));
+  renderAppMeta();
 }
 
 export function renderFullApp(root: HTMLElement, state: AppState): ComputedRace {
@@ -136,6 +137,7 @@ export function renderFullApp(root: HTMLElement, state: AppState): ComputedRace 
   `;
 
   patchFooter(state);
+  renderAppMeta();
   restoreFocus(focus);
   return computed;
 }
