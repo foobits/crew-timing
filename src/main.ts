@@ -523,8 +523,102 @@ function applyInputFormat(
   return formatted;
 }
 
+function syncRace(updater: (race: RaceDraft) => RaceDraft): void {
+  state.race = touchRace(updater(state.race));
+  if (hasRaceData(state.race)) {
+    persistRace(state.race);
+  }
+}
+
+function applyStartTimestamp(value: string, announceOnError: boolean): void {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    syncRace((race) => ({
+      ...race,
+      startTimestampMs: null,
+      startDate: todayDateString(),
+      startConfirmed: true,
+    }));
+    return;
+  }
+
+  const parsed = parseTimestamp(trimmed);
+  if (isParseFailure(parsed)) {
+    if (announceOnError) announce(parsed.error);
+    return;
+  }
+
+  syncRace((race) => ({
+    ...race,
+    startTimestampMs: parsed.value,
+    startDate: todayDateString(),
+    startConfirmed: true,
+  }));
+  state.restoredBanner = false;
+}
+
+function applyReferenceElapsed(value: string, announceOnError: boolean): void {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    syncRace((race) => ({ ...race, referenceElapsedMs: null }));
+    return;
+  }
+
+  const parsed = parseElapsed(trimmed);
+  if (isParseFailure(parsed)) {
+    if (announceOnError) announce(parsed.error);
+    return;
+  }
+
+  syncRace((race) => ({ ...race, referenceElapsedMs: parsed.value }));
+}
+
+function applyLaneGap(laneNum: number, value: string, announceOnError: boolean): void {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    syncRace((race) => ({
+      ...race,
+      lanes: race.lanes.map((lane) =>
+        lane.lane === laneNum ? { ...lane, gapMs: null, gapNegative: false } : lane,
+      ),
+    }));
+    return;
+  }
+
+  const parsed = parseElapsed(trimmed);
+  if (isParseFailure(parsed)) {
+    if (announceOnError) announce(parsed.error);
+    return;
+  }
+
+  syncRace((race) => ({
+    ...race,
+    lanes: race.lanes.map((lane) =>
+      lane.lane === laneNum
+        ? { ...lane, gapMs: parsed.value, gapNegative: lane.gapNegative, status: "active" }
+        : lane,
+    ),
+  }));
+}
+
+/** Read live input values into state. Mobile often skips change until blur. */
+function commitAllFormFields(announceOnError: boolean): void {
+  const startInput = app.querySelector<HTMLInputElement>("#start-ts");
+  if (startInput) applyStartTimestamp(startInput.value, announceOnError);
+
+  const refInput = app.querySelector<HTMLInputElement>("#ref-elapsed");
+  if (refInput) applyReferenceElapsed(refInput.value, announceOnError);
+
+  app.querySelectorAll<HTMLInputElement>("[data-gap-input]").forEach((input) => {
+    if (input.readOnly) return;
+    applyLaneGap(Number(input.dataset.gapInput), input.value, announceOnError);
+  });
+}
+
 function bindEvents(computed: ReturnType<typeof computeRace>): void {
   app.querySelector('[data-action="calculate"]')?.addEventListener("click", () => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    commitAllFormFields(false);
     state.showResults = true;
     render();
     document.getElementById("results-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -536,33 +630,14 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
   });
 
   app.querySelector("#start-ts")?.addEventListener("input", (e) => {
-    applyInputFormat(e.target as HTMLInputElement, formatTimestampWhileTyping);
+    const input = e.target as HTMLInputElement;
+    applyInputFormat(input, formatTimestampWhileTyping);
+    applyStartTimestamp(input.value, false);
   });
 
   app.querySelector("#start-ts")?.addEventListener("change", (e) => {
-    const value = (e.target as HTMLInputElement).value.trim();
-    if (!value) {
-      updateRace((race) => ({
-        ...race,
-        startTimestampMs: null,
-        startDate: todayDateString(),
-        startConfirmed: true,
-      }));
-      return;
-    }
-    const parsed = parseTimestamp(value);
-    if (isParseFailure(parsed)) {
-      announce(parsed.error);
-      render();
-      return;
-    }
-    updateRace((race) => ({
-      ...race,
-      startTimestampMs: parsed.value,
-      startDate: todayDateString(),
-      startConfirmed: true,
-    }));
-    state.restoredBanner = false;
+    applyStartTimestamp((e.target as HTMLInputElement).value, true);
+    render();
   });
 
   app.querySelector("#start-confirmed")?.addEventListener("change", (e) => {
@@ -579,21 +654,16 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
     if (refInput) {
       refInput.value = value || DEFAULT_ELAPSED;
     }
+    applyReferenceElapsed(value, false);
   });
 
   app.querySelector("#ref-elapsed")?.addEventListener("change", (e) => {
-    const value = (e.target as HTMLInputElement).value.trim();
-    if (!value) {
-      updateRace((race) => ({ ...race, referenceElapsedMs: null }));
-      return;
-    }
-    const parsed = parseElapsed(value);
-    if (isParseFailure(parsed)) {
-      announce(parsed.error);
-      render();
-      return;
-    }
-    updateRace((race) => ({ ...race, referenceElapsedMs: parsed.value }));
+    applyReferenceElapsed((e.target as HTMLInputElement).value, true);
+    render();
+  });
+
+  app.querySelector("#ref-elapsed")?.addEventListener("blur", (e) => {
+    applyReferenceElapsed((e.target as HTMLInputElement).value, false);
   });
 
   app.querySelector('[data-action="add-lane"]')?.addEventListener("click", () => {
@@ -663,29 +733,19 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
       const input = e.target as HTMLInputElement;
       if (input.readOnly) return;
       applyInputFormat(input, formatGapWhileTyping);
+      applyLaneGap(Number(input.dataset.gapInput), input.value, false);
     });
 
     el.addEventListener("change", (e) => {
-      const laneNum = Number((e.target as HTMLInputElement).dataset.gapInput);
-      const value = (e.target as HTMLInputElement).value.trim();
-      updateRace((race) => ({
-        ...race,
-        lanes: race.lanes.map((lane) => {
-          if (lane.lane !== laneNum) return lane;
-          if (!value) return { ...lane, gapMs: null, gapNegative: false };
-          const parsed = parseElapsed(value);
-          if (isParseFailure(parsed)) {
-            announce(parsed.error);
-            return lane;
-          }
-          return {
-            ...lane,
-            gapMs: parsed.value,
-            gapNegative: lane.gapNegative,
-            status: "active",
-          };
-        }),
-      }));
+      const input = e.target as HTMLInputElement;
+      applyLaneGap(Number(input.dataset.gapInput), input.value, true);
+      render();
+    });
+
+    el.addEventListener("blur", (e) => {
+      const input = e.target as HTMLInputElement;
+      if (input.readOnly) return;
+      applyLaneGap(Number(input.dataset.gapInput), input.value, false);
     });
   });
 
