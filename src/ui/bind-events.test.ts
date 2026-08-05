@@ -1,0 +1,254 @@
+// @vitest-environment happy-dom
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as clipboard from "../app/clipboard";
+import { touchRace } from "../lib/race-state";
+import { sampleAppState } from "../test/fixtures";
+import { mountBoundApp } from "../test/bind-app";
+import { applyRenderScope } from "./patch-dom";
+import { renderFooter } from "./render-dialog";
+
+function fillTimeInput(root: ParentNode, selector: string, value: string): void {
+  const input = root.querySelector<HTMLInputElement>(selector)!;
+  input.value = value;
+  input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+describe("bindEventsOnce", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.spyOn(clipboard, "copyText").mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    document.body.innerHTML = "";
+  });
+
+  it("toggles gap sign on lane rows", () => {
+    const app = mountBoundApp(sampleAppState());
+    app.root.querySelector<HTMLElement>('[data-gap-sign="2"]')?.click();
+    expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapNegative).toBe(true);
+    expect(app.scheduleRender).toHaveBeenCalledWith({ type: "lane-row", lane: 2 });
+  });
+
+  it("marks a lane empty from the status toggle", () => {
+    const app = mountBoundApp(sampleAppState());
+    app.root
+      .querySelector<HTMLButtonElement>('[data-status="4"][data-status-value="empty"]')
+      ?.click();
+
+    const lane = app.getState().race.lanes.find((entry) => entry.lane === 4);
+    expect(lane?.status).toBe("empty");
+    expect(lane?.gapMs).toBeNull();
+  });
+
+  it("clears a lane gap from the row action", () => {
+    const app = mountBoundApp(sampleAppState());
+    app.root.querySelector<HTMLElement>('[data-clear-lane="2"]')?.click();
+
+    const lane = app.getState().race.lanes.find((entry) => entry.lane === 2);
+    expect(lane?.gapMs).toBeNull();
+    expect(lane?.gapNegative).toBe(false);
+  });
+
+  it("adds and removes lanes", () => {
+    const app = mountBoundApp(sampleAppState());
+    const initialCount = app.getState().race.lanes.length;
+
+    app.root.querySelector<HTMLElement>('[data-action="add-lane"]')?.click();
+    expect(app.getState().race.lanes).toHaveLength(initialCount + 1);
+
+    app.root.querySelector<HTMLElement>('[data-action="remove-lane"]')?.click();
+    expect(app.getState().race.lanes).toHaveLength(initialCount);
+  });
+
+  it("calculates results from live form values", () => {
+    const app = mountBoundApp(sampleAppState());
+    fillTimeInput(app.root, "#start-ts", "10:05:03.111");
+    fillTimeInput(app.root, "#ref-elapsed", "01:23.450");
+
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "2.511";
+    lane2.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+
+    expect(app.getState().showResults).toBe(true);
+    expect(app.renderNow).toHaveBeenCalledWith({ type: "results" });
+    expect(app.root.querySelector(".result-card")).not.toBeNull();
+  });
+
+  it("collapses and expands race context", () => {
+    const app = mountBoundApp(sampleAppState());
+    app.root.querySelector<HTMLElement>('[data-action="toggle-context"]')?.click();
+    expect(app.getState().contextCollapsed).toBe(true);
+
+    app.root.querySelector<HTMLElement>('[data-action="expand-context"]')?.click();
+    expect(app.getState().contextCollapsed).toBe(false);
+  });
+
+  it("expands collapsed context from the keyboard", () => {
+    const app = mountBoundApp(sampleAppState({ contextCollapsed: true }));
+    const summary = app.root.querySelector<HTMLElement>('[data-action="expand-context"]')!;
+    summary.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(app.getState().contextCollapsed).toBe(false);
+  });
+
+  it("updates the event label on input", () => {
+    const app = mountBoundApp(sampleAppState());
+    const label = app.root.querySelector<HTMLInputElement>("#event-label")!;
+    label.value = "Mens 1V Heat 2";
+    label.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    expect(app.getState().race.eventLabel).toBe("Mens 1V Heat 2");
+  });
+
+  it("announces validation errors on change", () => {
+    const app = mountBoundApp(sampleAppState());
+    const start = app.root.querySelector<HTMLInputElement>("#start-ts")!;
+    start.value = "bad";
+    start.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(document.getElementById("toast")?.textContent).toMatch(/HH:MM:SS/i);
+  });
+
+  it("copies a lane timestamp and marks it copied", async () => {
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+
+    app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')?.click();
+    await vi.waitFor(() => expect(app.getState().copiedLanes.has(2)).toBe(true));
+    expect(clipboard.copyText).toHaveBeenCalled();
+  });
+
+  it("copies all results when valid", async () => {
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+
+    app.root.querySelector<HTMLElement>('[data-action="copy-all"]')?.click();
+    await vi.waitFor(() =>
+      expect(document.getElementById("toast")?.textContent).toBe("Copied all results"),
+    );
+  });
+
+  it("re-sorts visible results", () => {
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+
+    app.root.querySelector<HTMLButtonElement>('[data-results-sort="lane"]')?.click();
+    expect(app.getState().resultsSort).toBe("lane");
+    expect(app.scheduleRender).toHaveBeenCalledWith({ type: "results" });
+  });
+
+  it("opens and confirms next race from footer actions", () => {
+    renderFooter(true);
+    const app = mountBoundApp(sampleAppState());
+
+    document.querySelector<HTMLElement>('[data-action="next-race"]')?.click();
+    expect(app.getState().confirmAction).toBe("nextRace");
+
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+    expect(app.getState().confirmAction).toBeNull();
+    expect(app.getState().race.eventLabel).toBe("");
+    expect(app.getState().undoSnapshot).not.toBeNull();
+  });
+
+  it("opens and confirms clear judge from footer actions", () => {
+    renderFooter(true);
+    const app = mountBoundApp(sampleAppState());
+
+    document.querySelector<HTMLElement>('[data-action="clear-judge"]')?.click();
+    expect(app.getState().confirmAction).toBe("clearJudge");
+
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+    expect(app.getState().race.referenceElapsedMs).toBeNull();
+    expect(app.getState().showResults).toBe(false);
+  });
+
+  it("prompts before changing reference lane when gaps would reset", () => {
+    const app = mountBoundApp(sampleAppState());
+    const refLane = app.root.querySelector<HTMLSelectElement>("#ref-lane")!;
+    refLane.value = "4";
+    refLane.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(app.getState().confirmAction).toBe("changeRef");
+    expect(app.getState().pendingReferenceLane).toBe(4);
+  });
+
+  it("restores the undo snapshot from the banner action", () => {
+    renderFooter(true);
+    const app = mountBoundApp(sampleAppState());
+    const beforeLabel = app.getState().race.eventLabel;
+
+    document.querySelector<HTMLElement>('[data-action="next-race"]')?.click();
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+    expect(app.getState().race.eventLabel).toBe("");
+
+    document.querySelector<HTMLElement>('[data-action="undo"]')?.click();
+    expect(app.getState().race.eventLabel).toBe(beforeLabel);
+    expect(app.getState().undoSnapshot).toBeNull();
+  });
+
+  it("cancels a pending confirmation dialog", () => {
+    renderFooter(true);
+    const app = mountBoundApp(sampleAppState());
+
+    document.querySelector<HTMLElement>('[data-action="next-race"]')?.click();
+    app.root.querySelector<HTMLElement>('[data-action="confirm-cancel"]')?.click();
+    expect(app.getState().confirmAction).toBeNull();
+  });
+
+  it("switches reference lane immediately when the target lane already has a gap", () => {
+    const app = mountBoundApp(sampleAppState());
+    const refLane = app.root.querySelector<HTMLSelectElement>("#ref-lane")!;
+    refLane.value = "2";
+    refLane.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(app.getState().confirmAction).toBeNull();
+    expect(app.getState().race.referenceLane).toBe(2);
+  });
+
+  it("confirms a pending reference-lane change", () => {
+    const app = mountBoundApp(sampleAppState());
+    const refLane = app.root.querySelector<HTMLSelectElement>("#ref-lane")!;
+    refLane.value = "4";
+    refLane.dispatchEvent(new Event("change", { bubbles: true }));
+
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+    expect(app.getState().race.referenceLane).toBe(4);
+    expect(app.getState().confirmAction).toBeNull();
+  });
+
+  it("announces manual copy fallback when clipboard write fails", async () => {
+    vi.mocked(clipboard.copyText).mockResolvedValue(false);
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+
+    app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')?.click();
+    await vi.waitFor(() =>
+      expect(document.getElementById("toast")?.textContent).toBe("Select and copy manually"),
+    );
+  });
+
+  it("persists start confirmation and gap blur updates", () => {
+    const app = mountBoundApp(
+      sampleAppState({
+        race: touchRace({
+          ...sampleAppState().race,
+          startDate: "2020-01-01",
+          startConfirmed: false,
+        }),
+      }),
+    );
+
+    const confirmed = app.root.querySelector<HTMLInputElement>("#start-confirmed")!;
+    confirmed.checked = true;
+    confirmed.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(app.getState().race.startConfirmed).toBe(true);
+
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "3.000";
+    lane2.dispatchEvent(new Event("blur", { bubbles: true }));
+    expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs).toBe(3_000);
+  });
+});

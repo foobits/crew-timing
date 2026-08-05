@@ -6,10 +6,11 @@ export function initToast(el: HTMLElement): void {
 
 export function showToast(message: string): void {
   if (!toastEl) return;
-  toastEl.textContent = message;
-  toastEl.hidden = false;
+  const el = toastEl;
+  el.textContent = message;
+  el.hidden = false;
   window.setTimeout(() => {
-    if (toastEl) toastEl.hidden = true;
+    el.hidden = true;
   }, 2200);
 }
 

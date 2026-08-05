@@ -134,6 +134,19 @@ describe("patchLaneRow", () => {
     expect(nextInput?.selectionStart).toBe(2);
     expect(nextInput?.selectionEnd).toBe(2);
   });
+
+  it("returns early when the lane or row is missing", () => {
+    const root = document.createElement("div");
+    root.innerHTML = `<div class="lane-row" data-lane="2"></div>`;
+    const before = root.innerHTML;
+
+    patchLaneRow(root, sampleAppState(), 99);
+    expect(root.innerHTML).toBe(before);
+
+    root.innerHTML = "";
+    patchLaneRow(root, sampleAppState(), 2);
+    expect(root.innerHTML).toBe("");
+  });
 });
 
 describe("applyRenderScope", () => {
@@ -222,5 +235,28 @@ describe("applyRenderScope", () => {
 
     applyRenderScope(root, sampleAppState(), { type: "lanes" });
     expect(root.querySelectorAll(".lane-row").length).toBe(8);
+  });
+
+  it("patches a single lane row and lane-count controls together", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    renderFullApp(root, sampleAppState());
+
+    const nextState = sampleAppState();
+    nextState.race = touchRace({
+      ...nextState.race,
+      lanes: nextState.race.lanes.map((lane) =>
+        lane.lane === 2 ? { ...lane, gapNegative: true } : lane,
+      ),
+    });
+
+    applyRenderScope(root, nextState, { type: "lane-row", lane: 2 });
+
+    expect(
+      root.querySelector('.lane-row[data-lane="2"] .gap-sign-btn')?.classList.contains(
+        "gap-sign-btn--negative",
+      ),
+    ).toBe(true);
+    expect(root.querySelector(".lane-count")?.textContent).toBe("8");
   });
 });

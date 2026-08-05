@@ -47,7 +47,6 @@ export default defineConfig({
         "src/test-setup.ts",
         "src/test/**",
         "src/ui/render-app.ts",
-        "src/ui/bind-events.ts",
       ],
       thresholds: {
         lines: 85,
