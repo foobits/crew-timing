@@ -8,8 +8,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icons.svg"],
       manifest: {
-        name: "Crew Timing Calculator",
-        short_name: "Crew Timing",
+        name: "Race Timing Calculator",
+        short_name: "Race Timing",
         description:
           "Convert finish-judge gaps into CrewTimer chronological timestamps",
         theme_color: "#1a365d",
