@@ -52,5 +52,15 @@ describe("renderResultsSection", () => {
     const html = renderResultsSection(state, computed, computed.results);
 
     expect(html).toContain('class="result-card copied"');
+    expect(html).toContain("Copied — tap to unmark");
+  });
+
+  it("shows the default copy label when a lane is not copied", () => {
+    const state = sampleAppState({ showResults: true });
+    const computed = computeRace(state.race);
+    const html = renderResultsSection(state, computed, computed.results);
+
+    expect(html).toContain("Copy timestamp");
+    expect(html).not.toContain("Copied — tap to unmark");
   });
 });

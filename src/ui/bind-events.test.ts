@@ -209,6 +209,69 @@ describe("bindEventsOnce", () => {
     expect(app.renderNow).not.toHaveBeenCalledWith({ type: "copied-lane", lane: 2 });
   });
 
+  describe("copied lane checklist", () => {
+    async function copyLane(app: ReturnType<typeof mountBoundApp>, lane: number): Promise<void> {
+      applyRenderScope(app.root, app.getState(), { type: "results" });
+      app.root.querySelector<HTMLButtonElement>(`[data-copy-lane="${lane}"]`)?.click();
+      await vi.waitFor(() => expect(app.getState().copiedLanes.has(lane)).toBe(true));
+    }
+
+    it("unmarks a copied lane on second tap without copying again", async () => {
+      const app = mountBoundApp(sampleAppState({ showResults: true }));
+      await copyLane(app, 2);
+      vi.mocked(clipboard.copyText).mockClear();
+
+      app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')?.click();
+      await vi.waitFor(() => expect(app.getState().copiedLanes.has(2)).toBe(false));
+
+      expect(clipboard.copyText).not.toHaveBeenCalled();
+      expect(
+        app.root.querySelector('[data-result-lane="2"]')?.classList.contains("copied"),
+      ).toBe(false);
+      expect(app.root.querySelector('[data-copy-lane="2"]')?.textContent).toBe("Copy timestamp");
+    });
+
+    it("keeps other copied lanes when one lane is unmarked", async () => {
+      const app = mountBoundApp(sampleAppState({ showResults: true }));
+      await copyLane(app, 2);
+      await copyLane(app, 3);
+
+      app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')?.click();
+      await vi.waitFor(() => expect(app.getState().copiedLanes.has(2)).toBe(false));
+
+      expect(app.getState().copiedLanes.has(3)).toBe(true);
+      expect(
+        app.root.querySelector('[data-result-lane="3"]')?.classList.contains("copied"),
+      ).toBe(true);
+    });
+
+    it("clears all copied marks when Calculate runs", async () => {
+      const app = mountBoundApp(sampleAppState({ showResults: true }));
+      await copyLane(app, 2);
+
+      fillTimeInput(app.root, "#start-ts", "10:05:03.111");
+      fillTimeInput(app.root, "#ref-elapsed", "01:23.450");
+      app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+
+      expect(app.getState().copiedLanes.size).toBe(0);
+      expect(
+        app.root.querySelector('[data-result-lane="2"]')?.classList.contains("copied"),
+      ).toBe(false);
+    });
+
+    it("preserves copied marks when results are re-sorted", async () => {
+      const app = mountBoundApp(sampleAppState({ showResults: true }));
+      await copyLane(app, 2);
+
+      app.root.querySelector<HTMLButtonElement>('[data-results-sort="lane"]')?.click();
+
+      expect(app.getState().copiedLanes.has(2)).toBe(true);
+      expect(
+        app.root.querySelector('[data-result-lane="2"]')?.classList.contains("copied"),
+      ).toBe(true);
+    });
+  });
+
   it("copies all results when valid", async () => {
     const app = mountBoundApp(sampleAppState({ showResults: true }));
     applyRenderScope(app.root, app.getState(), { type: "results" });

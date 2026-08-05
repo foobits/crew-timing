@@ -12,6 +12,7 @@ import { renderConfirmDialog, renderFooter, renderAppMeta } from "./render-dialo
 import { renderLaneRowHtml, renderLanesSection } from "./render-lanes";
 import {
   renderResultsSection,
+  renderResultCardHtml,
 } from "./render-results";
 
 const EMPTY_COMPUTED: ComputedRace = { valid: false, results: [], errors: [] };
@@ -102,8 +103,16 @@ export function patchResults(root: HTMLElement, state: AppState, computed: Compu
   restoreFocus(focus);
 }
 
-export function patchCopiedLane(root: HTMLElement, lane: number): void {
-  root.querySelector(`[data-result-lane="${lane}"]`)?.classList.add("copied");
+export function patchResultCard(
+  root: HTMLElement,
+  state: AppState,
+  lane: number,
+  computed: ComputedRace,
+): void {
+  const card = root.querySelector(`[data-result-lane="${lane}"]`);
+  const result = computed.results.find((entry) => entry.lane === lane);
+  if (!card || !result) return;
+  card.outerHTML = renderResultCardHtml(state, result).trim();
 }
 
 export function patchDialog(root: HTMLElement, state: AppState): void {
@@ -152,9 +161,11 @@ export function applyRenderScope(
   switch (scope.type) {
     case "none":
       return getComputedRace(state);
-    case "copied-lane":
-      patchCopiedLane(root, scope.lane);
-      return getComputedRace(state);
+    case "copied-lane": {
+      const computed = getComputedRace(state);
+      patchResultCard(root, state, scope.lane, computed);
+      return computed;
+    }
     case "banners":
       patchBanners(root, state, stale);
       return getComputedRace(state);

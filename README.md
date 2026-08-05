@@ -18,7 +18,7 @@ Open the local URL on your phone (same Wi‑Fi) or use the live site above.
 1. Copy the **race start timestamp** from CrewTimer into **Race start**.
 2. Enter **reference elapsed** time and select the **reference lane**.
 3. Enter each active lane's **gap from reference** (see [Field input formats](#field-input-formats) below).
-4. Tap **Calculate**, then **Copy timestamp** on each result and paste into CrewTimer's **Timestamp** field. Copied lanes turn **green**.
+4. Tap **Calculate**, then **Copy timestamp** on each result and paste into CrewTimer's **Timestamp** field. Copied lanes turn **green**; tap again to unmark. **Calculate** clears all copied marks ([details](docs/copied-lane-feedback.md)).
 5. Confirm CrewTimer's **Delta Time** matches the app's **Calculated elapsed** cross-check.
 6. Tap **Next race** when done.
 
@@ -104,6 +104,7 @@ src/
   test/                Shared test fixtures and bind-app harness
 e2e/                   Playwright desktop + mobile flows
 fixtures/              Sample race input/outputs for manual regression
+docs/                  UX and behavior design notes (not all implemented)
 ```
 
 Rendering is scoped (`render-scope.ts`) so most interactions patch only the affected section (context, lane row, results, etc.) rather than re-rendering the whole app.
@@ -130,13 +131,13 @@ npm run test:watch     # Vitest watch mode
 | `src/lib/` | Parsing, race computation, form commit |
 | `src/app/` | State, debounced persistence, form sync, app bootstrap, clipboard |
 | `src/ui/` | Event binding, render helpers, partial DOM patches, components, focus/toast |
-| `e2e/` | Desktop + mobile race flows, fixture regression, copy styling, gap sign toggle |
+| `e2e/` | Desktop + mobile race flows, fixture regression, copy styling, gap sign toggle, copied-lane checklist |
 
-**189 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~95% statements / ~98% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
+**197 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~94% statements / ~98% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
 
 **Local E2E note:** Mobile Safari tests may skip on macOS 26+ when Playwright WebKit cannot reach the preview server. **CI on Ubuntu is the source of truth** for mobile E2E (see PR template). Desktop + fixture regression run locally via `npm run test:e2e`.
 
-A **build label** (`v1.0.0 · YYYY-MM-DD`) appears at the bottom of the app after each deploy so you can confirm your phone picked up the latest PWA.
+A **build label** (`v1.0.42 · YYYY-MM-DD`) appears at the bottom of the app after each deploy. The patch segment is the GitHub Actions **run number** for that deploy (incremented on every merge to `main`), so you can confirm your phone picked up the latest PWA. Local builds show `v1.0.0-dev · …`. Bump `major`/`minor` in `package.json` when you want a new release line.
 
 ## Deploy
 
@@ -159,6 +160,7 @@ Test in a **non-scoring event** before relying on this app:
 ## Notes
 
 - **Gap from reference** is not CrewTimer's "Delta Time" (total elapsed).
+- **Copied lanes** show a green card after a successful copy. Tap **Copy timestamp** again (label becomes **Copied — tap to unmark**) to clear one lane; **Calculate** clears all marks. Details: [design doc](docs/copied-lane-feedback.md).
 - **Next race** clears all data including the localStorage draft.
 - **Clear judge data** keeps the start timestamp and event label.
 - **Stale drafts** from a previous calendar day prompt start-time reconfirmation (uses local date, not UTC).

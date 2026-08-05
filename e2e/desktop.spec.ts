@@ -4,12 +4,14 @@ import {
   copyLaneTimestamp,
   expectGapSignNegative,
   expectLaneCopied,
+  expectLaneNotCopied,
   expectNoReferenceElapsedError,
   expectResultsVisible,
   fillLaneGap,
   fillRaceContext,
   gotoApp,
   tapGapSign,
+  unmarkLaneCopy,
 } from "./helpers";
 
 test.describe("desktop race flow", () => {
@@ -62,6 +64,38 @@ test.describe("desktop race flow", () => {
 
     await copyLaneTimestamp(page, 2);
     await expectLaneCopied(page, 2);
+  });
+});
+
+test.describe("copied lane checklist", () => {
+  test("unmarks one lane while keeping others copied", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await gotoApp(page);
+    await fillRaceContext(page);
+    await fillLaneGap(page, 2, "2.511");
+    await fillLaneGap(page, 3, "1:23.450");
+    await calculate(page);
+
+    await copyLaneTimestamp(page, 2);
+    await copyLaneTimestamp(page, 3);
+    await unmarkLaneCopy(page, 2);
+
+    await expectLaneNotCopied(page, 2);
+    await expectLaneCopied(page, 3);
+  });
+
+  test("clears copied styling after Calculate", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await gotoApp(page);
+    await fillRaceContext(page);
+    await fillLaneGap(page, 2, "2.511");
+    await calculate(page);
+
+    await copyLaneTimestamp(page, 2);
+    await expectLaneCopied(page, 2);
+
+    await calculate(page);
+    await expectLaneNotCopied(page, 2);
   });
 });
 
