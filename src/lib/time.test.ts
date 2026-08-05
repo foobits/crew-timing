@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   addDurationToTimestamp,
   formatElapsed,
+  formatElapsedWhileTyping,
   formatGap,
+  formatGapWhileTyping,
   formatTimestamp,
+  formatTimestampWhileTyping,
   parseElapsed,
   parseGap,
   parseTimestamp,
@@ -100,6 +103,28 @@ describe("arithmetic", () => {
     const gap = 1_200;
     expect(ref - gap).toBe(442_250);
     expect(formatElapsed(442_250)).toBe("07:22.250");
+  });
+});
+
+describe("format while typing", () => {
+  it("formats timestamp digits with colons and decimal", () => {
+    expect(formatTimestampWhileTyping("13")).toBe("13");
+    expect(formatTimestampWhileTyping("1308")).toBe("13:08");
+    expect(formatTimestampWhileTyping("130801")).toBe("13:08:01");
+    expect(formatTimestampWhileTyping("130801491")).toBe("13:08:01.491");
+    expect(formatTimestampWhileTyping("13:08:01.491")).toBe("13:08:01.491");
+  });
+
+  it("formats elapsed digits with colon and decimal", () => {
+    expect(formatElapsedWhileTyping("7")).toBe("7");
+    expect(formatElapsedWhileTyping("723")).toBe("7:23");
+    expect(formatElapsedWhileTyping("72345")).toBe("7:23.45");
+    expect(formatElapsedWhileTyping("0123450")).toBe("01:23.450");
+  });
+
+  it("formats signed gap digits", () => {
+    expect(formatGapWhileTyping("-234")).toBe("-2:34");
+    expect(formatGapWhileTyping("+002340")).toBe("0:02.340");
   });
 });
 
