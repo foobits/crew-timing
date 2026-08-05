@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  addLane,
   clearJudgeData,
   computeRace,
   createEmptyRace,
   hasRaceData,
+  MAX_LANE_COUNT,
+  MIN_LANE_COUNT,
   nextRace,
+  removeLane,
   setReferenceLane,
   type RaceDraft,
 } from "./race-state";
@@ -80,6 +84,43 @@ describe("setReferenceLane", () => {
     race = setReferenceLane(race, 2, true);
     expect(race.lanes.find((l) => l.lane === 2)?.gapMs).toBe(0);
     expect(race.lanes.find((l) => l.lane === 5)?.gapMs).toBe(null);
+  });
+});
+
+describe("lane count", () => {
+  it("adds a lane up to the maximum", () => {
+    let race = createEmptyRace();
+    expect(race.lanes.length).toBe(MAX_LANE_COUNT);
+
+    while (race.lanes.length > MIN_LANE_COUNT) {
+      race = removeLane(race);
+    }
+    expect(race.lanes.length).toBe(MIN_LANE_COUNT);
+
+    race = addLane(race);
+    expect(race.lanes.length).toBe(2);
+    expect(race.lanes[1]?.lane).toBe(2);
+  });
+
+  it("removes the last lane down to the minimum", () => {
+    let race = createEmptyRace();
+    race = removeLane(race);
+    expect(race.lanes.length).toBe(MAX_LANE_COUNT - 1);
+    expect(race.lanes.at(-1)?.lane).toBe(MAX_LANE_COUNT - 1);
+
+    while (race.lanes.length > MIN_LANE_COUNT) {
+      race = removeLane(race);
+    }
+    race = removeLane(race);
+    expect(race.lanes.length).toBe(MIN_LANE_COUNT);
+  });
+
+  it("moves reference to lane 1 when removing the reference lane", () => {
+    let race = createEmptyRace();
+    race = { ...race, referenceLane: MAX_LANE_COUNT };
+    race = removeLane(race);
+    expect(race.lanes.length).toBe(MAX_LANE_COUNT - 1);
+    expect(race.referenceLane).toBe(1);
   });
 });
 

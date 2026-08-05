@@ -9,6 +9,10 @@ import {
   hasRaceData,
   isStaleDraft,
   loadPersistedRace,
+  MAX_LANE_COUNT,
+  MIN_LANE_COUNT,
+  addLane,
+  removeLane,
   nextRace,
   persistRace,
   setReferenceLane,
@@ -153,7 +157,14 @@ function render(): void {
     </section>
 
     <section class="card">
-      <h2>Lanes <span class="label-format">+MM:SS.SSS</span></h2>
+      <div class="section-header">
+        <h2>Lanes <span class="label-format">+MM:SS.SSS</span></h2>
+        <div class="lane-count-controls">
+          <button type="button" class="btn btn-small" data-action="remove-lane" aria-label="Remove lane" ${state.race.lanes.length <= MIN_LANE_COUNT ? "disabled" : ""}>−</button>
+          <span class="lane-count">${state.race.lanes.length}</span>
+          <button type="button" class="btn btn-small" data-action="add-lane" aria-label="Add lane" ${state.race.lanes.length >= MAX_LANE_COUNT ? "disabled" : ""}>+</button>
+        </div>
+      </div>
       <div class="lane-grid">${state.race.lanes.map(renderLaneRow).join("")}</div>
     </section>
 
@@ -231,9 +242,8 @@ function renderContextFields(stale: boolean): string {
     </div>
     <div class="field">
       <label for="ref-lane">Reference lane</label>
-      <select id="ref-lane">${Array.from({ length: 8 }, (_, i) => {
-        const lane = i + 1;
-        return `<option value="${lane}" ${lane === state.race.referenceLane ? "selected" : ""}>Lane ${lane}</option>`;
+      <select id="ref-lane">${state.race.lanes.map((lane) => {
+        return `<option value="${lane.lane}" ${lane.lane === state.race.referenceLane ? "selected" : ""}>${lane.lane}</option>`;
       }).join("")}</select>
     </div>
     ${
@@ -255,7 +265,7 @@ function renderLaneRow(lane: LaneDraft): string {
   return `
     <div class="lane-row ${isRef ? "reference" : ""} ${lane.status === "empty" ? "empty-lane" : ""}" data-lane="${lane.lane}">
       <div>
-        <div class="lane-num">L${lane.lane}</div>
+        <div class="lane-num">${lane.lane}</div>
         ${isRef ? `<div class="lane-ref-badge">REF</div>` : ""}
       </div>
       <input
@@ -303,7 +313,7 @@ function renderResultCard(result: {
 
   return `
     <article class="result-card${copied}" data-result-lane="${result.lane}">
-      <div class="result-place">${place} · Lane ${result.lane}${tied}</div>
+      <div class="result-place">${place} · ${result.lane}${tied}</div>
       <div class="timestamp-label">CrewTimer finish timestamp</div>
       <div class="timestamp-value">${result.finishFormatted}</div>
       <button type="button" class="btn btn-copy" data-copy-lane="${result.lane}" data-copy-value="${result.finishFormatted}">Copy timestamp</button>
@@ -384,6 +394,14 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
       return;
     }
     updateRace((race) => ({ ...race, referenceElapsedMs: parsed.value }));
+  });
+
+  app.querySelector('[data-action="add-lane"]')?.addEventListener("click", () => {
+    updateRace((race) => addLane(race));
+  });
+
+  app.querySelector('[data-action="remove-lane"]')?.addEventListener("click", () => {
+    updateRace((race) => removeLane(race));
   });
 
   app.querySelector("#ref-lane")?.addEventListener("change", (e) => {

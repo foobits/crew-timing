@@ -94,6 +94,44 @@ h1 {
   font-weight: 400;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.lane-count-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lane-count {
+  min-width: 1.5rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.lane-count-controls .btn-small {
+  min-width: 44px;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.lane-count-controls .btn-small:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .context-summary {
   cursor: pointer;
   user-select: none;

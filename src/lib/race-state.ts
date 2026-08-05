@@ -47,7 +47,8 @@ export interface ComputedRace {
 }
 
 const STORAGE_KEY = "crew-timing-race-draft";
-export const LANE_COUNT = 8;
+export const MIN_LANE_COUNT = 1;
+export const MAX_LANE_COUNT = 8;
 
 export function createEmptyRace(): RaceDraft {
   return {
@@ -57,13 +58,17 @@ export function createEmptyRace(): RaceDraft {
     startConfirmed: true,
     referenceLane: 1,
     referenceElapsedMs: null,
-    lanes: createDefaultLanes(1),
+    lanes: createDefaultLanes(1, MAX_LANE_COUNT),
     updatedAt: new Date().toISOString(),
   };
 }
 
-export function createDefaultLanes(referenceLane: number): LaneDraft[] {
-  return Array.from({ length: LANE_COUNT }, (_, index) => {
+export function createDefaultLanes(
+  referenceLane: number,
+  count: number = MAX_LANE_COUNT,
+): LaneDraft[] {
+  const laneCount = Math.min(MAX_LANE_COUNT, Math.max(MIN_LANE_COUNT, count));
+  return Array.from({ length: laneCount }, (_, index) => {
     const lane = index + 1;
     const isRef = lane === referenceLane;
     return {
@@ -73,6 +78,45 @@ export function createDefaultLanes(referenceLane: number): LaneDraft[] {
       gapNegative: false,
     };
   });
+}
+
+export function addLane(race: RaceDraft): RaceDraft {
+  if (race.lanes.length >= MAX_LANE_COUNT) {
+    return race;
+  }
+  const newLane = race.lanes.length + 1;
+  return enforceInvariants(
+    touchRace({
+      ...race,
+      lanes: [
+        ...race.lanes,
+        {
+          lane: newLane,
+          status: "active",
+          gapMs: null,
+          gapNegative: false,
+        },
+      ],
+    }),
+  );
+}
+
+export function removeLane(race: RaceDraft): RaceDraft {
+  if (race.lanes.length <= MIN_LANE_COUNT) {
+    return race;
+  }
+  const removedLane = race.lanes.length;
+  let referenceLane = race.referenceLane;
+  if (referenceLane === removedLane) {
+    referenceLane = 1;
+  }
+  return enforceInvariants(
+    touchRace({
+      ...race,
+      referenceLane,
+      lanes: race.lanes.slice(0, -1),
+    }),
+  );
 }
 
 export function touchRace(race: RaceDraft): RaceDraft {
@@ -141,7 +185,7 @@ export function setReferenceLane(
       };
     });
   } else {
-    lanes = createDefaultLanes(newReferenceLane);
+    lanes = createDefaultLanes(newReferenceLane, race.lanes.length);
   }
 
   return enforceInvariants(
@@ -310,7 +354,11 @@ export function loadPersistedRace(): RaceDraft | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as RaceDraft;
-    if (!parsed.lanes || parsed.lanes.length !== LANE_COUNT) {
+    if (
+      !parsed.lanes ||
+      parsed.lanes.length < MIN_LANE_COUNT ||
+      parsed.lanes.length > MAX_LANE_COUNT
+    ) {
       return null;
     }
     return enforceInvariants(parsed);
