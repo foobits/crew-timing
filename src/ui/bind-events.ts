@@ -1,12 +1,11 @@
 import {
   addLane,
   clearJudgeData,
+  computeRace,
   formatCopyAll,
   nextRace,
-  persistRace,
   removeLane,
   setReferenceLane,
-  type ComputedRace,
   type RaceDraft,
 } from "../lib/race-state";
 import { canCollapseContext, sortResults } from "../lib/ui-helpers";
@@ -17,6 +16,9 @@ import {
 } from "../lib/time";
 import { copyText } from "../app/clipboard";
 import { DEFAULT_ELAPSED } from "../app/constants";
+import { flushPersistRace } from "../app/persist-scheduler";
+import type { RenderScope } from "../app/render-scope";
+import { isInstantScrollPreferred } from "../app/render-scope";
 import {
   applyInputFormat,
   applyLaneGap,
@@ -32,94 +34,290 @@ import { announce } from "./toast";
 export interface AppActions {
   getState(): AppState;
   setState(updater: (state: AppState) => AppState): void;
-  updateRace(updater: (race: RaceDraft) => RaceDraft): void;
-  render(): void;
+  updateRace(updater: (race: RaceDraft) => RaceDraft, scope?: RenderScope): void;
+  scheduleRender(scope: RenderScope): void;
+  renderNow(scope: RenderScope): void;
+  getComputed(): ReturnType<typeof computeRace>;
 }
 
-export function bindEvents(
-  root: HTMLElement,
-  actions: AppActions,
-  computed: ComputedRace,
-): void {
-  const { getState, setState, updateRace, render } = actions;
+export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
+  const { getState, setState, updateRace, scheduleRender, renderNow, getComputed } = actions;
 
-  root.querySelector('[data-action="calculate"]')?.addEventListener("click", () => {
-    (document.activeElement as HTMLElement | null)?.blur();
-    const { state } = commitAllFormFields(getState(), root);
-    setState(() => ({ ...state, showResults: true }));
-    render();
-    document.getElementById("results-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  root.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
 
-  root.querySelector("#event-label")?.addEventListener("input", (e) => {
-    const value = (e.target as HTMLInputElement).value;
-    updateRace((race) => ({ ...race, eventLabel: value }));
-  });
-
-  root.querySelector("#start-ts")?.addEventListener("input", (e) => {
-    const input = e.target as HTMLInputElement;
-    applyInputFormat(input, formatTimestampWhileTyping);
-    const { state, error } = applyStartTimestamp(getState(), input.value);
-    if (error) return;
-    setState(() => state);
-  });
-
-  root.querySelector("#start-ts")?.addEventListener("change", (e) => {
-    const { state, error } = applyStartTimestamp(getState(), (e.target as HTMLInputElement).value);
-    if (error) {
-      announce(error);
+    const actionEl = target.closest<HTMLElement>("[data-action]");
+    if (actionEl?.dataset.action) {
+      handleAction(actionEl.dataset.action, actionEl);
       return;
     }
-    setState(() => state);
-    render();
-  });
 
-  root.querySelector("#start-confirmed")?.addEventListener("change", (e) => {
-    const checked = (e.target as HTMLInputElement).checked;
-    updateRace((race) => ({ ...race, startConfirmed: checked }));
-  });
-
-  root.querySelector("#ref-elapsed")?.addEventListener("input", (e) => {
-    const input = e.target as HTMLInputElement;
-    const value = applyInputFormat(input, formatElapsedWhileTyping);
-    const refInput = root.querySelector<HTMLInputElement>(
-      `[data-gap-input="${getState().race.referenceLane}"]`,
-    );
-    if (refInput) {
-      refInput.value = value || DEFAULT_ELAPSED;
-    }
-    const { state, error } = applyReferenceElapsed(getState(), value);
-    if (error) return;
-    setState(() => state);
-  });
-
-  root.querySelector("#ref-elapsed")?.addEventListener("change", (e) => {
-    const { state, error } = applyReferenceElapsed(getState(), (e.target as HTMLInputElement).value);
-    if (error) {
-      announce(error);
+    const gapSign = target.closest<HTMLElement>("[data-gap-sign]");
+    if (gapSign?.dataset.gapSign) {
+      const laneNum = Number(gapSign.dataset.gapSign);
+      updateRace(
+        (race) => ({
+          ...race,
+          lanes: race.lanes.map((lane) =>
+            lane.lane === laneNum ? { ...lane, gapNegative: !lane.gapNegative } : lane,
+          ),
+        }),
+        { type: "lane-row", lane: laneNum },
+      );
       return;
     }
-    setState(() => state);
-    render();
+
+    const statusBtn = target.closest<HTMLButtonElement>("[data-status-value]");
+    if (statusBtn && !statusBtn.disabled) {
+      const laneNum = Number(statusBtn.dataset.status);
+      const status = statusBtn.dataset.statusValue as "active" | "empty";
+      updateRace(
+        (race) => ({
+          ...race,
+          lanes: race.lanes.map((lane) => {
+            if (lane.lane !== laneNum) return lane;
+            if (status === "empty") {
+              return { ...lane, status, gapMs: null, gapNegative: false };
+            }
+            return { ...lane, status };
+          }),
+        }),
+        { type: "lane-row", lane: laneNum },
+      );
+      return;
+    }
+
+    const clearLaneBtn = target.closest<HTMLElement>("[data-clear-lane]");
+    if (clearLaneBtn?.dataset.clearLane) {
+      const laneNum = Number(clearLaneBtn.dataset.clearLane);
+      updateRace(
+        (race) => ({
+          ...race,
+          lanes: race.lanes.map((lane) =>
+            lane.lane === laneNum
+              ? { ...lane, gapMs: null, gapNegative: false, status: "active" }
+              : lane,
+          ),
+        }),
+        { type: "lane-row", lane: laneNum },
+      );
+      return;
+    }
+
+    const copyBtn = target.closest<HTMLButtonElement>("[data-copy-lane]");
+    if (copyBtn?.dataset.copyLane) {
+      void handleCopyLane(copyBtn);
+      return;
+    }
+
+    const sortBtn = target.closest<HTMLButtonElement>("[data-results-sort]");
+    if (sortBtn?.dataset.resultsSort) {
+      const sort = sortBtn.dataset.resultsSort as ResultsSort;
+      const state = getState();
+      if (sort === state.resultsSort) return;
+      setState((s) => ({ ...s, resultsSort: sort }));
+      scheduleRender({ type: "results" });
+    }
   });
 
-  root.querySelector("#ref-elapsed")?.addEventListener("blur", (e) => {
-    const { state, error } = applyReferenceElapsed(getState(), (e.target as HTMLInputElement).value);
-    if (error) return;
-    setState(() => state);
+  root.addEventListener("keydown", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (!target.closest('[data-action="expand-context"]')) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setState((s) => ({ ...s, contextCollapsed: false }));
+    scheduleRender({ type: "context" });
   });
 
-  root.querySelector('[data-action="add-lane"]')?.addEventListener("click", () => {
-    updateRace((race) => addLane(race));
+  root.addEventListener(
+    "input",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+
+      if (target.id === "event-label") {
+        setState((s) =>
+          updateRaceDraft(s, (race) => ({ ...race, eventLabel: target.value }), {
+            persist: "debounced",
+          }),
+        );
+        return;
+      }
+
+      if (target.id === "start-ts") {
+        applyInputFormat(target, formatTimestampWhileTyping);
+        const { state, error } = applyStartTimestamp(getState(), target.value);
+        if (error) return;
+        setState(() => state);
+        return;
+      }
+
+      if (target.id === "ref-elapsed") {
+        const value = applyInputFormat(target, formatElapsedWhileTyping);
+        syncReferenceLaneGapInput(root, getState().race.referenceLane, value);
+        const { state, error } = applyReferenceElapsed(getState(), value);
+        if (error) return;
+        setState(() => state);
+        return;
+      }
+
+      if (target.dataset.gapInput && !target.readOnly) {
+        applyInputFormat(target, formatGapWhileTyping);
+        const { state, error } = applyLaneGap(getState(), Number(target.dataset.gapInput), target.value);
+        if (error) return;
+        setState(() => state);
+      }
+    },
+    true,
+  );
+
+  root.addEventListener(
+    "change",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      if (target.id === "start-ts") {
+        const { state, error } = applyStartTimestamp(getState(), target.value);
+        if (error) {
+          announce(error);
+          return;
+        }
+        setState(() => state);
+        scheduleRender({ type: "context" });
+        return;
+      }
+
+      if (target.id === "start-confirmed" && target instanceof HTMLInputElement) {
+        updateRace((race) => ({ ...race, startConfirmed: target.checked }), { type: "context" });
+        return;
+      }
+
+      if (target.id === "ref-elapsed") {
+        const { state, error } = applyReferenceElapsed(getState(), target.value);
+        if (error) {
+          announce(error);
+          return;
+        }
+        setState(() => state);
+        scheduleRender({ type: "lane-row", lane: state.race.referenceLane });
+        return;
+      }
+
+      if (target.id === "ref-lane") {
+        handleReferenceLaneChange(Number(target.value));
+        return;
+      }
+
+      if (target instanceof HTMLInputElement && target.dataset.gapInput) {
+        const laneNum = Number(target.dataset.gapInput);
+        const { state, error } = applyLaneGap(getState(), laneNum, target.value);
+        if (error) {
+          announce(error);
+          return;
+        }
+        setState(() => state);
+        scheduleRender({ type: "lane-row", lane: laneNum });
+      }
+    },
+    true,
+  );
+
+  root.addEventListener(
+    "blur",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+
+      if (target.id === "ref-elapsed") {
+        const { state, error } = applyReferenceElapsed(getState(), target.value);
+        if (error) return;
+        setState(() => state);
+        return;
+      }
+
+      if (target.dataset.gapInput && !target.readOnly) {
+        const { state, error } = applyLaneGap(getState(), Number(target.dataset.gapInput), target.value);
+        if (error) return;
+        setState(() => state);
+      }
+    },
+    true,
+  );
+
+  document.body.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const actionEl = target.closest<HTMLElement>("[data-action]");
+    const action = actionEl?.dataset.action;
+    if (!action) return;
+
+    if (action === "next-race" || action === "clear-judge") {
+      setState((s) => ({
+        ...s,
+        confirmAction: action === "next-race" ? "nextRace" : "clearJudge",
+      }));
+      scheduleRender({ type: "dialog" });
+      return;
+    }
+
+    if (action === "undo") {
+      handleUndo();
+    }
   });
 
-  root.querySelector('[data-action="remove-lane"]')?.addEventListener("click", () => {
-    updateRace((race) => removeLane(race));
-  });
+  function handleAction(action: string, _el: HTMLElement): void {
+    switch (action) {
+      case "calculate":
+        (document.activeElement as HTMLElement | null)?.blur();
+        {
+          const { state } = commitAllFormFields(getState(), root);
+          setState(() => ({ ...state, showResults: true }));
+          renderNow({ type: "results" });
+          document.getElementById("results-card")?.scrollIntoView({
+            behavior: isInstantScrollPreferred() ? "auto" : "smooth",
+            block: "start",
+          });
+        }
+        break;
+      case "add-lane":
+        updateRace((race) => addLane(race), { type: "lanes" });
+        break;
+      case "remove-lane":
+        updateRace((race) => removeLane(race), { type: "lanes" });
+        break;
+      case "toggle-context":
+        {
+          const state = getState();
+          if (!canCollapseContext(state.race)) return;
+          setState((s) => ({ ...s, contextCollapsed: !s.contextCollapsed }));
+          scheduleRender({ type: "context" });
+        }
+        break;
+      case "expand-context":
+        setState((s) => ({ ...s, contextCollapsed: false }));
+        scheduleRender({ type: "context" });
+        break;
+      case "copy-all":
+        void handleCopyAll();
+        break;
+      case "confirm-cancel":
+        setState((s) => ({ ...s, confirmAction: null, pendingReferenceLane: null }));
+        scheduleRender({ type: "dialog" });
+        break;
+      case "confirm-ok":
+        handleConfirmOk();
+        break;
+    }
+  }
 
-  root.querySelector("#ref-lane")?.addEventListener("change", (e) => {
+  function handleReferenceLaneChange(lane: number): void {
     const state = getState();
-    const lane = Number((e.target as HTMLSelectElement).value);
     if (lane === state.race.referenceLane) return;
 
     const hasGaps = state.race.lanes.some(
@@ -136,168 +334,44 @@ export function bindEvents(
         pendingReferenceLane: lane,
         confirmAction: "changeRef",
       }));
-      render();
+      scheduleRender({ type: "dialog" });
       return;
     }
 
-    updateRace((race) => setReferenceLane(race, lane, false));
-  });
+    updateRace((race) => setReferenceLane(race, lane, false), { type: "lanes" });
+  }
 
-  root.querySelector('[data-action="toggle-context"]')?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const state = getState();
-    if (!canCollapseContext(state.race)) return;
-    setState((s) => ({ ...s, contextCollapsed: !s.contextCollapsed }));
-    render();
-  });
-
-  root.querySelector('[data-action="expand-context"]')?.addEventListener("click", () => {
-    setState((s) => ({ ...s, contextCollapsed: false }));
-    render();
-  });
-
-  root.querySelector('[data-action="expand-context"]')?.addEventListener("keydown", (e) => {
-    if ((e as KeyboardEvent).key === "Enter" || (e as KeyboardEvent).key === " ") {
-      e.preventDefault();
-      setState((s) => ({ ...s, contextCollapsed: false }));
-      render();
+  async function handleCopyLane(btn: HTMLButtonElement): Promise<void> {
+    const lane = Number(btn.dataset.copyLane);
+    const value = btn.dataset.copyValue ?? "";
+    const ok = await copyText(value);
+    if (ok) {
+      setState((s) => {
+        const copiedLanes = new Set(s.copiedLanes);
+        copiedLanes.add(lane);
+        return { ...s, copiedLanes };
+      });
+      announce(`Copied ${value}`);
+      scheduleRender({ type: "copied-lane", lane });
+    } else {
+      announce("Select and copy manually");
     }
-  });
+  }
 
-  root.querySelectorAll("[data-gap-sign]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      const laneNum = Number((e.target as HTMLButtonElement).dataset.gapSign);
-      updateRace((race) => ({
-        ...race,
-        lanes: race.lanes.map((lane) =>
-          lane.lane === laneNum ? { ...lane, gapNegative: !lane.gapNegative } : lane,
-        ),
-      }));
-    });
-  });
-
-  root.querySelectorAll("[data-gap-input]").forEach((el) => {
-    el.addEventListener("input", (e) => {
-      const input = e.target as HTMLInputElement;
-      if (input.readOnly) return;
-      applyInputFormat(input, formatGapWhileTyping);
-      const { state, error } = applyLaneGap(getState(), Number(input.dataset.gapInput), input.value);
-      if (error) return;
-      setState(() => state);
-    });
-
-    el.addEventListener("change", (e) => {
-      const input = e.target as HTMLInputElement;
-      const { state, error } = applyLaneGap(getState(), Number(input.dataset.gapInput), input.value);
-      if (error) {
-        announce(error);
-        return;
-      }
-      setState(() => state);
-      render();
-    });
-
-    el.addEventListener("blur", (e) => {
-      const input = e.target as HTMLInputElement;
-      if (input.readOnly) return;
-      const { state, error } = applyLaneGap(getState(), Number(input.dataset.gapInput), input.value);
-      if (error) return;
-      setState(() => state);
-    });
-  });
-
-  root.querySelectorAll("[data-status-value]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      const btn = e.target as HTMLButtonElement;
-      if (btn.disabled) return;
-
-      const laneNum = Number(btn.dataset.status);
-      const status = btn.dataset.statusValue as "active" | "empty";
-      updateRace((race) => ({
-        ...race,
-        lanes: race.lanes.map((lane) => {
-          if (lane.lane !== laneNum) return lane;
-          if (status === "empty") {
-            return { ...lane, status, gapMs: null, gapNegative: false };
-          }
-          return { ...lane, status };
-        }),
-      }));
-    });
-  });
-
-  root.querySelectorAll("[data-clear-lane]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      const laneNum = Number((e.target as HTMLButtonElement).dataset.clearLane);
-      updateRace((race) => ({
-        ...race,
-        lanes: race.lanes.map((lane) =>
-          lane.lane === laneNum
-            ? { ...lane, gapMs: null, gapNegative: false, status: "active" }
-            : lane,
-        ),
-      }));
-    });
-  });
-
-  root.querySelectorAll("[data-results-sort]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      const sort = (e.target as HTMLButtonElement).dataset.resultsSort as ResultsSort;
-      const state = getState();
-      if (sort === state.resultsSort) return;
-      setState((s) => ({ ...s, resultsSort: sort }));
-      render();
-    });
-  });
-
-  root.querySelectorAll("[data-copy-lane]").forEach((el) => {
-    el.addEventListener("click", async (e) => {
-      const btn = e.target as HTMLButtonElement;
-      const lane = Number(btn.dataset.copyLane);
-      const value = btn.dataset.copyValue ?? "";
-      const ok = await copyText(value);
-      if (ok) {
-        setState((s) => {
-          const copiedLanes = new Set(s.copiedLanes);
-          copiedLanes.add(lane);
-          return { ...s, copiedLanes };
-        });
-        announce(`Copied ${value}`);
-        render();
-      } else {
-        announce("Select and copy manually");
-      }
-    });
-  });
-
-  root.querySelector('[data-action="copy-all"]')?.addEventListener("click", async () => {
+  async function handleCopyAll(): Promise<void> {
+    const computed = getComputed();
     if (!computed.valid) return;
     const state = getState();
     const text = formatCopyAll(state.race, sortResults(computed.results, state.resultsSort));
     const ok = await copyText(text);
     announce(ok ? "Copied all results" : "Select and copy manually");
-  });
+  }
 
-  document.querySelector('[data-action="next-race"]')?.addEventListener("click", () => {
-    setState((s) => ({ ...s, confirmAction: "nextRace" }));
-    render();
-  });
-
-  document.querySelector('[data-action="clear-judge"]')?.addEventListener("click", () => {
-    setState((s) => ({ ...s, confirmAction: "clearJudge" }));
-    render();
-  });
-
-  document.querySelector('[data-action="confirm-cancel"]')?.addEventListener("click", () => {
-    setState((s) => ({ ...s, confirmAction: null, pendingReferenceLane: null }));
-    render();
-  });
-
-  document.querySelector('[data-action="confirm-ok"]')?.addEventListener("click", () => {
+  function handleConfirmOk(): void {
     const state = getState();
 
     if (state.confirmAction === "nextRace") {
-      const undo = saveUndoSnapshot(state, render);
+      const undo = saveUndoSnapshot(state, () => scheduleRender({ type: "banners" }));
       setState((s) => ({
         ...s,
         ...undo,
@@ -309,10 +383,12 @@ export function bindEvents(
         confirmAction: null,
         pendingReferenceLane: null,
       }));
+      flushPersistRace(getState().race);
+      renderNow({ type: "full" });
     } else if (state.confirmAction === "clearJudge") {
-      const undo = saveUndoSnapshot(state, render);
+      const undo = saveUndoSnapshot(state, () => scheduleRender({ type: "banners" }));
       const race = clearJudgeData(state.race);
-      persistRace(race);
+      flushPersistRace(race);
       setState((s) => ({
         ...s,
         ...undo,
@@ -322,6 +398,7 @@ export function bindEvents(
         confirmAction: null,
         pendingReferenceLane: null,
       }));
+      renderNow({ type: "full" });
     } else if (state.confirmAction === "changeRef" && state.pendingReferenceLane !== null) {
       const pendingLane = state.pendingReferenceLane;
       setState((s) => ({
@@ -329,25 +406,37 @@ export function bindEvents(
         confirmAction: null,
         pendingReferenceLane: null,
       }));
+      renderNow({ type: "full" });
     } else {
       setState((s) => ({ ...s, confirmAction: null, pendingReferenceLane: null }));
+      scheduleRender({ type: "dialog" });
     }
 
-    render();
     root.querySelector<HTMLElement>("#event-label, #start-ts")?.focus();
-  });
+  }
 
-  document.querySelector('[data-action="undo"]')?.addEventListener("click", () => {
+  function handleUndo(): void {
     const state = getState();
     if (!state.undoSnapshot) return;
 
     const race = state.undoSnapshot;
-    persistRace(race);
+    flushPersistRace(race);
     setState((s) => ({
       ...s,
       race,
       ...clearUndoSnapshot(s),
     }));
-    render();
-  });
+    renderNow({ type: "full" });
+  }
+}
+
+function syncReferenceLaneGapInput(
+  root: HTMLElement,
+  referenceLane: number,
+  value: string,
+): void {
+  const refInput = root.querySelector<HTMLInputElement>(`[data-gap-input="${referenceLane}"]`);
+  if (refInput) {
+    refInput.value = value || DEFAULT_ELAPSED;
+  }
 }

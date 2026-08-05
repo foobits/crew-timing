@@ -6,7 +6,8 @@ import {
   isFieldApplyFailure,
 } from "../lib/form-commit";
 import { applyInputFormatValue } from "../lib/ui-helpers";
-import { hasRaceData, persistRace, type RaceDraft } from "../lib/race-state";
+import { hasRaceData, type RaceDraft } from "../lib/race-state";
+import { flushPersistRace, schedulePersistRace } from "./persist-scheduler";
 import type { AppState } from "./types";
 
 export function applyInputFormat(
@@ -31,7 +32,7 @@ export function applyStartTimestamp(
 
   let next = { ...state, race: result.race };
   if (hasRaceData(next.race)) {
-    persistRace(next.race);
+    schedulePersistRace(next.race);
   }
   if (value.trim()) {
     next = { ...next, restoredBanner: false };
@@ -50,7 +51,7 @@ export function applyReferenceElapsed(
 
   const next = { ...state, race: result.race };
   if (hasRaceData(next.race)) {
-    persistRace(next.race);
+    schedulePersistRace(next.race);
   }
   return { state: next };
 }
@@ -67,7 +68,7 @@ export function applyLaneGap(
 
   const next = { ...state, race: result.race };
   if (hasRaceData(next.race)) {
-    persistRace(next.race);
+    schedulePersistRace(next.race);
   }
   return { state: next };
 }
@@ -95,7 +96,7 @@ export function commitAllFormFields(
 
   const next = { ...state, race };
   if (hasRaceData(next.race)) {
-    persistRace(next.race);
+    flushPersistRace(next.race);
   }
   return { state: next, errors };
 }
@@ -103,11 +104,16 @@ export function commitAllFormFields(
 export function updateRaceDraft(
   state: AppState,
   updater: (race: RaceDraft) => RaceDraft,
+  options: { persist?: "immediate" | "debounced" } = {},
 ): AppState {
   const race = updater(state.race);
   const next = { ...state, race, showResults: false };
   if (hasRaceData(next.race)) {
-    persistRace(next.race);
+    if (options.persist === "immediate") {
+      flushPersistRace(next.race);
+    } else {
+      schedulePersistRace(next.race);
+    }
   }
   return next;
 }
