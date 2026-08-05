@@ -89,9 +89,17 @@ function renderLaneRow(state: AppState, lane: LaneDraft): string {
   `;
 }
 
+export function renderLaneRowHtml(state: AppState, lane: LaneDraft): string {
+  return renderLaneRow(state, lane);
+}
+
+export function renderLaneGridHtml(state: AppState): string {
+  return state.race.lanes.map((lane) => renderLaneRow(state, lane)).join("");
+}
+
 export function renderLanesSection(state: AppState): string {
   return `
-    <section class="card">
+    <section class="card" id="lanes-section">
       <div class="section-header">
         <h2>Lanes (splits) <span class="label-format">± sec.sss or MM:SS.SSS</span></h2>
         <div class="lane-count-controls">
@@ -100,7 +108,7 @@ export function renderLanesSection(state: AppState): string {
           <button type="button" class="btn btn-small" data-action="add-lane" aria-label="Add lane" tabindex="-1">+</button>
         </div>
       </div>
-      <div class="lane-grid">${state.race.lanes.map((lane) => renderLaneRow(state, lane)).join("")}</div>
+      <div class="lane-grid" id="lane-grid">${renderLaneGridHtml(state)}</div>
       <button type="button" class="btn btn-primary lane-calculate" data-action="calculate">Calculate</button>
     </section>
   `;

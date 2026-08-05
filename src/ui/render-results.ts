@@ -41,6 +41,35 @@ function renderResultCard(state: AppState, result: LaneResult): string {
   `;
 }
 
+export function renderResultsBody(
+  state: AppState,
+  computed: ComputedRace,
+  displayedResults: LaneResult[],
+): string {
+  return `
+      ${
+        state.showResults && computed.errors.length
+          ? `<ul class="errors">${computed.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`
+          : ""
+      }
+      <div id="results-body">
+      ${
+        state.showResults && computed.valid
+          ? displayedResults.map((r) => renderResultCard(state, r)).join("")
+          : `<p class="elapsed-check">${state.showResults ? "Fix the errors above and calculate again." : "Enter race data and lane splits, then tap Calculate."}</p>`
+      }
+      </div>
+  `;
+}
+
+function renderResultsHeaderActions(state: AppState, computed: ComputedRace): string {
+  if (!state.showResults || !computed.valid) return "";
+  return `<div class="results-header-actions">
+                ${renderResultsSortToggle(state.resultsSort)}
+                <button type="button" class="btn btn-small" data-action="copy-all">Copy all</button>
+              </div>`;
+}
+
 export function renderResultsSection(
   state: AppState,
   computed: ComputedRace,
@@ -52,23 +81,11 @@ export function renderResultsSection(
         <h2>Results</h2>
         ${
           state.showResults && computed.valid
-            ? `<div class="results-header-actions">
-                ${renderResultsSortToggle(state.resultsSort)}
-                <button type="button" class="btn btn-small" data-action="copy-all">Copy all</button>
-              </div>`
+            ? renderResultsHeaderActions(state, computed)
             : ""
         }
       </div>
-      ${
-        state.showResults && computed.errors.length
-          ? `<ul class="errors">${computed.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`
-          : ""
-      }
-      ${
-        state.showResults && computed.valid
-          ? displayedResults.map((r) => renderResultCard(state, r)).join("")
-          : `<p class="elapsed-check">${state.showResults ? "Fix the errors above and calculate again." : "Enter race data and lane splits, then tap Calculate."}</p>`
-      }
+      ${renderResultsBody(state, computed, displayedResults)}
     </section>
   `;
 }
