@@ -48,7 +48,7 @@ export interface ComputedRace {
 
 const STORAGE_KEY = "crew-timing-race-draft";
 export const MIN_LANE_COUNT = 1;
-export const MAX_LANE_COUNT = 8;
+export const DEFAULT_LANE_COUNT = 8;
 
 export function createEmptyRace(): RaceDraft {
   return {
@@ -58,16 +58,16 @@ export function createEmptyRace(): RaceDraft {
     startConfirmed: true,
     referenceLane: 1,
     referenceElapsedMs: null,
-    lanes: createDefaultLanes(1, MAX_LANE_COUNT),
+    lanes: createDefaultLanes(1, DEFAULT_LANE_COUNT),
     updatedAt: new Date().toISOString(),
   };
 }
 
 export function createDefaultLanes(
   referenceLane: number,
-  count: number = MAX_LANE_COUNT,
+  count: number = DEFAULT_LANE_COUNT,
 ): LaneDraft[] {
-  const laneCount = Math.min(MAX_LANE_COUNT, Math.max(MIN_LANE_COUNT, count));
+  const laneCount = Math.max(MIN_LANE_COUNT, count);
   return Array.from({ length: laneCount }, (_, index) => {
     const lane = index + 1;
     const isRef = lane === referenceLane;
@@ -81,9 +81,6 @@ export function createDefaultLanes(
 }
 
 export function addLane(race: RaceDraft): RaceDraft {
-  if (race.lanes.length >= MAX_LANE_COUNT) {
-    return race;
-  }
   const newLane = race.lanes.length + 1;
   return enforceInvariants(
     touchRace({
@@ -356,8 +353,7 @@ export function loadPersistedRace(): RaceDraft | null {
     const parsed = JSON.parse(raw) as RaceDraft;
     if (
       !parsed.lanes ||
-      parsed.lanes.length < MIN_LANE_COUNT ||
-      parsed.lanes.length > MAX_LANE_COUNT
+      parsed.lanes.length < MIN_LANE_COUNT
     ) {
       return null;
     }

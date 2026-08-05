@@ -10,7 +10,6 @@ import {
   hasRaceData,
   isStaleDraft,
   loadPersistedRace,
-  MAX_LANE_COUNT,
   MIN_LANE_COUNT,
   addLane,
   removeLane,
@@ -202,7 +201,7 @@ function render(): void {
           : ""
       }
       <div class="context-fields">
-        <h2>Race context</h2>
+        <h2>Race</h2>
         ${renderContextFields(stale)}
       </div>
     </section>
@@ -213,7 +212,7 @@ function render(): void {
         <div class="lane-count-controls">
           <button type="button" class="btn btn-small" data-action="remove-lane" aria-label="Remove lane" ${state.race.lanes.length <= MIN_LANE_COUNT ? "disabled" : ""}>−</button>
           <span class="lane-count">${state.race.lanes.length}</span>
-          <button type="button" class="btn btn-small" data-action="add-lane" aria-label="Add lane" ${state.race.lanes.length >= MAX_LANE_COUNT ? "disabled" : ""}>+</button>
+          <button type="button" class="btn btn-small" data-action="add-lane" aria-label="Add lane">+</button>
         </div>
       </div>
       <div class="lane-grid">${state.race.lanes.map(renderLaneRow).join("")}</div>
@@ -268,12 +267,12 @@ function renderContextFields(stale: boolean): string {
 
   return `
     <div class="field">
-      <label for="event-label">Event label (optional)</label>
-      <input id="event-label" type="text" value="${escapeAttr(state.race.eventLabel)}" placeholder="Mens 1V Heat 2" autocomplete="off" />
+      <label for="event-label">Name (optional)</label>
+      <input id="event-label" type="text" value="${escapeAttr(state.race.eventLabel)}" placeholder="Mens 1V 8+ Heat 1" autocomplete="off" />
     </div>
     <div class="field">
       <label for="start-ts">
-        Race start timestamp (from CrewTimer)
+        Start time
         <span class="label-format">HH:MM:SS.SSS</span>
       </label>
       <input id="start-ts" type="text" inputmode="decimal" value="${escapeAttr(startValue)}" placeholder="${DEFAULT_TIMESTAMP}" autocomplete="off" />
@@ -286,17 +285,17 @@ function renderContextFields(stale: boolean): string {
         : ""
     }
     <div class="field">
+      <label for="ref-lane">Reference lane</label>
+      <select id="ref-lane">${state.race.lanes.map((lane) => {
+        return `<option value="${lane.lane}" ${lane.lane === state.race.referenceLane ? "selected" : ""}>${lane.lane}</option>`;
+      }).join("")}</select>
+    </div>
+    <div class="field">
       <label for="ref-elapsed">
         Reference lane time on water
         <span class="label-format">MM:SS.SSS</span>
       </label>
       <input id="ref-elapsed" type="text" inputmode="decimal" value="${escapeAttr(refValue)}" placeholder="${DEFAULT_ELAPSED}" autocomplete="off" />
-    </div>
-    <div class="field">
-      <label for="ref-lane">Reference lane</label>
-      <select id="ref-lane">${state.race.lanes.map((lane) => {
-        return `<option value="${lane.lane}" ${lane.lane === state.race.referenceLane ? "selected" : ""}>${lane.lane}</option>`;
-      }).join("")}</select>
     </div>
     ${
       state.race.startTimestampMs !== null && state.race.referenceElapsedMs !== null
