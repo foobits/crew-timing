@@ -18,6 +18,7 @@ import {
   setReferenceLane,
   touchRace,
   type LaneDraft,
+  type LaneResult,
   type RaceDraft,
 } from "./lib/race-state";
 import {
@@ -36,11 +37,13 @@ interface AppState {
   race: RaceDraft;
   contextCollapsed: boolean;
   restoredBanner: boolean;
-  lastCopiedLane: number | null;
+  copiedLanes: Set<number>;
   undoSnapshot: RaceDraft | null;
   undoTimer: number | null;
   confirmAction: "nextRace" | "clearJudge" | "changeRef" | null;
   pendingReferenceLane: number | null;
+  showResults: boolean;
+  resultsSort: "place" | "lane";
 }
 
 const PLACE_LABELS = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
@@ -52,11 +55,13 @@ let state: AppState = {
   race: createEmptyRace(),
   contextCollapsed: false,
   restoredBanner: false,
-  lastCopiedLane: null,
+  copiedLanes: new Set(),
   undoSnapshot: null,
   undoTimer: null,
   confirmAction: null,
   pendingReferenceLane: null,
+  showResults: false,
+  resultsSort: "place",
 };
 
 const app = document.getElementById("app")!;
@@ -78,6 +83,7 @@ function init(): void {
 }
 
 function updateRace(updater: (race: RaceDraft) => RaceDraft): void {
+  state.showResults = false;
   state.race = touchRace(updater(state.race));
   if (hasRaceData(state.race)) {
     persistRace(state.race);
@@ -130,7 +136,26 @@ function saveUndo(): void {
   }, 30_000);
 }
 
-function formatContextSummary(race: RaceDraft): string {
+function canCollapseContext(race: RaceDraft): boolean {
+  return race.startTimestampMs !== null && race.referenceElapsedMs !== null;
+}
+
+function renderContextCaret(): string {
+  const expanded = !state.contextCollapsed;
+  return `
+    <button
+      type="button"
+      class="context-toggle"
+      data-action="toggle-context"
+      aria-label="${expanded ? "Collapse race section" : "Expand race section"}"
+      aria-expanded="${expanded}"
+    >
+      <span class="context-toggle-icon context-toggle-icon--${expanded ? "down" : "up"}" aria-hidden="true"></span>
+    </button>
+  `;
+}
+
+function renderContextSummary(race: RaceDraft): string {
   const start =
     race.startTimestampMs !== null
       ? formatTimestamp(race.startTimestampMs)
@@ -140,7 +165,11 @@ function formatContextSummary(race: RaceDraft): string {
       ? formatElapsed(race.referenceElapsedMs)
       : DEFAULT_ELAPSED;
 
-  return `Start of Race: ${start} · Reference Lane: ${race.referenceLane} · ${refElapsed} time on water`;
+  return `
+    <div class="context-summary-line">Start of Race: <span class="context-summary-value">${escapeHtml(start)}</span></div>
+    <div class="context-summary-line">Reference Lane: <span class="context-summary-value">${race.referenceLane}</span></div>
+    <div class="context-summary-line">Time on water: <span class="context-summary-value">${escapeHtml(refElapsed)}</span></div>
+  `;
 }
 
 function captureFocus(): {
@@ -176,16 +205,46 @@ function restoreFocus(
   }
 }
 
+function sortResults(results: LaneResult[]): LaneResult[] {
+  if (state.resultsSort === "lane") {
+    return [...results].sort((a, b) => a.lane - b.lane);
+  }
+  return results;
+}
+
+function renderResultsSortToggle(): string {
+  const placeSelected = state.resultsSort === "place" ? " selected" : "";
+  const laneSelected = state.resultsSort === "lane" ? " selected" : "";
+
+  return `
+    <div class="results-sort-toggle lane-status-toggle" role="group" aria-label="Sort results">
+      <button
+        type="button"
+        class="lane-status-btn${placeSelected}"
+        data-results-sort="place"
+        aria-pressed="${state.resultsSort === "place"}"
+      >Place</button>
+      <button
+        type="button"
+        class="lane-status-btn${laneSelected}"
+        data-results-sort="lane"
+        aria-pressed="${state.resultsSort === "lane"}"
+      >Lane</button>
+    </div>
+  `;
+}
+
 function render(): void {
   const focus = captureFocus();
   const computed = computeRace(state.race);
+  const displayedResults = computed.valid ? sortResults(computed.results) : [];
   const stale = isStaleDraft(state.race);
   const showFooter = hasRaceData(state.race);
 
   app.innerHTML = `
     <header>
-      <h1>Crew Timing Calculator</h1>
-      <p class="subtitle">Finish-judge gaps → CrewTimer timestamps</p>
+      <h1>Race Timing Calculator</h1>
+      <p class="subtitle">Official finish time sheet -> CrewTimer</p>
     </header>
 
     ${state.restoredBanner ? `<div class="banner" role="status">Restored race draft from ${formatRestoreTime(state.race.updatedAt)}${stale ? " (different date — confirm start time)" : ""}</div>` : ""}
@@ -193,10 +252,11 @@ function render(): void {
     ${state.undoSnapshot ? `<div class="banner"><button type="button" class="btn btn-secondary" data-action="undo">Undo last clear</button></div>` : ""}
 
     <section class="card ${state.contextCollapsed ? "collapsed" : ""}" id="context-card">
+      ${canCollapseContext(state.race) ? renderContextCaret() : ""}
       ${
         state.contextCollapsed
           ? `<div class="context-summary" tabindex="0" role="button" aria-expanded="false" data-action="expand-context">
-              ${escapeHtml(formatContextSummary(state.race))}
+              ${renderContextSummary(state.race)}
             </div>`
           : ""
       }
@@ -208,31 +268,39 @@ function render(): void {
 
     <section class="card">
       <div class="section-header">
-        <h2>Lanes <span class="label-format">+MM:SS.SSS</span></h2>
+        <h2>Lanes (splits) <span class="label-format">+MM:SS.SSS</span></h2>
         <div class="lane-count-controls">
-          <button type="button" class="btn btn-small" data-action="remove-lane" aria-label="Remove lane" ${state.race.lanes.length <= MIN_LANE_COUNT ? "disabled" : ""}>−</button>
+          <button type="button" class="btn btn-small" data-action="remove-lane" aria-label="Remove lane" tabindex="-1" ${state.race.lanes.length <= MIN_LANE_COUNT ? "disabled" : ""}>−</button>
           <span class="lane-count">${state.race.lanes.length}</span>
-          <button type="button" class="btn btn-small" data-action="add-lane" aria-label="Add lane">+</button>
+          <button type="button" class="btn btn-small" data-action="add-lane" aria-label="Add lane" tabindex="-1">+</button>
         </div>
       </div>
       <div class="lane-grid">${state.race.lanes.map(renderLaneRow).join("")}</div>
+      <button type="button" class="btn btn-primary lane-calculate" data-action="calculate">Calculate</button>
     </section>
 
-    <section class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;">
-        <h2 style="margin:0">Results</h2>
+    <section class="card" id="results-card">
+      <div class="results-header">
+        <h2>Results</h2>
         ${
-          computed.valid
-            ? `<button type="button" class="btn btn-small" data-action="copy-all">Copy all</button>`
+          state.showResults && computed.valid
+            ? `<div class="results-header-actions">
+                ${renderResultsSortToggle()}
+                <button type="button" class="btn btn-small" data-action="copy-all">Copy all</button>
+              </div>`
             : ""
         }
       </div>
       ${
-        computed.errors.length
+        state.showResults && computed.errors.length
           ? `<ul class="errors">${computed.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`
           : ""
       }
-      ${computed.valid ? computed.results.map((r) => renderResultCard(r)).join("") : `<p class="elapsed-check">Enter start time, reference elapsed, and lane gaps to see timestamps.</p>`}
+      ${
+        state.showResults && computed.valid
+          ? displayedResults.map((r) => renderResultCard(r)).join("")
+          : `<p class="elapsed-check">${state.showResults ? "Fix the errors above and calculate again." : "Enter race data and lane splits, then tap Calculate."}</p>`
+      }
     </section>
 
     ${renderConfirmDialog()}
@@ -297,21 +365,25 @@ function renderContextFields(stale: boolean): string {
       </label>
       <input id="ref-elapsed" type="text" inputmode="decimal" value="${escapeAttr(refValue)}" placeholder="${DEFAULT_ELAPSED}" autocomplete="off" />
     </div>
-    ${
-      state.race.startTimestampMs !== null && state.race.referenceElapsedMs !== null
-        ? `<button type="button" class="btn btn-small" data-action="collapse-context">Collapse</button>`
-        : ""
-    }
   `;
 }
 
 function renderLaneRow(lane: LaneDraft): string {
   const isRef = lane.lane === state.race.referenceLane;
+  const refElapsedValue =
+    state.race.referenceElapsedMs !== null
+      ? formatElapsed(state.race.referenceElapsedMs)
+      : DEFAULT_ELAPSED;
   const gapValue = isRef
-    ? DEFAULT_GAP
+    ? refElapsedValue
     : lane.gapMs !== null
       ? `${lane.gapNegative ? "-" : ""}${formatGapInput(lane)}`
       : "";
+  const gapPlaceholder = isRef ? DEFAULT_ELAPSED : DEFAULT_GAP;
+  const gapAriaLabel = isRef
+    ? "Reference lane time on water"
+    : `Lane ${lane.lane} gap from reference`;
+  const skipGapTab = isRef || lane.status === "empty";
 
   return `
     <div class="lane-row ${isRef ? "reference" : ""} ${lane.status === "empty" ? "empty-lane" : ""}" data-lane="${lane.lane}">
@@ -321,16 +393,17 @@ function renderLaneRow(lane: LaneDraft): string {
       </div>
       <input
         type="text"
-        class="lane-gap-input"
+        class="lane-gap-input${isRef ? " lane-gap-input--locked" : ""}"
         inputmode="decimal"
-        aria-label="Lane ${lane.lane} gap from reference"
+        aria-label="${gapAriaLabel}"
         data-gap-input="${lane.lane}"
         value="${escapeAttr(gapValue)}"
-        placeholder="${DEFAULT_GAP}"
-        ${isRef || lane.status === "empty" ? "readonly" : ""}
+        placeholder="${gapPlaceholder}"
+        ${skipGapTab ? 'tabindex="-1"' : ""}
+        ${isRef ? 'readonly aria-disabled="true"' : lane.status === "empty" ? "readonly" : ""}
       />
       ${renderLaneStatusToggle(lane, isRef)}
-      <button type="button" class="btn btn-small" data-clear-lane="${lane.lane}" ${isRef ? "disabled" : ""} aria-label="Clear lane ${lane.lane}">Clear</button>
+      <button type="button" class="btn btn-small" data-clear-lane="${lane.lane}" tabindex="-1" ${isRef ? "disabled" : ""} aria-label="Clear lane ${lane.lane}">Clear</button>
     </div>
   `;
 }
@@ -349,6 +422,7 @@ function renderLaneStatusToggle(lane: LaneDraft, isRef: boolean): string {
         data-status="${lane.lane}"
         data-status-value="active"
         aria-pressed="${lane.status === "active"}"
+        tabindex="-1"
         ${disabled}
       >Active</button>
       <button
@@ -357,6 +431,7 @@ function renderLaneStatusToggle(lane: LaneDraft, isRef: boolean): string {
         data-status="${lane.lane}"
         data-status-value="empty"
         aria-pressed="${lane.status === "empty"}"
+        tabindex="-1"
         ${disabled}
       >Empty</button>
     </div>
@@ -386,15 +461,15 @@ function renderResultCard(result: {
 }): string {
   const place = PLACE_LABELS[result.place] ?? `${result.place}th`;
   const tied = result.tied ? " (tie)" : "";
-  const copied = state.lastCopiedLane === result.lane ? " copied" : "";
+  const copied = state.copiedLanes.has(result.lane) ? " copied" : "";
 
   return `
     <article class="result-card${copied}" data-result-lane="${result.lane}">
-      <div class="result-place">${place} · ${result.lane}${tied}</div>
+      <div class="result-place">${place} · Lane ${result.lane}${tied}</div>
       <div class="timestamp-label">CrewTimer finish timestamp</div>
       <div class="timestamp-value">${result.finishFormatted}</div>
       <button type="button" class="btn btn-copy" data-copy-lane="${result.lane}" data-copy-value="${result.finishFormatted}">Copy timestamp</button>
-      <div class="elapsed-check">Calculated elapsed: ${result.elapsedFormatted}</div>
+      <div class="elapsed-check">Calculated elapsed time: ${result.elapsedFormatted}</div>
     </article>
   `;
 }
@@ -422,6 +497,12 @@ function renderConfirmDialog(): string {
 }
 
 function bindEvents(computed: ReturnType<typeof computeRace>): void {
+  app.querySelector('[data-action="calculate"]')?.addEventListener("click", () => {
+    state.showResults = true;
+    render();
+    document.getElementById("results-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
   app.querySelector("#event-label")?.addEventListener("input", (e) => {
     const value = (e.target as HTMLInputElement).value;
     updateRace((race) => ({ ...race, eventLabel: value }));
@@ -456,6 +537,16 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
   app.querySelector("#start-confirmed")?.addEventListener("change", (e) => {
     const checked = (e.target as HTMLInputElement).checked;
     updateRace((race) => ({ ...race, startConfirmed: checked }));
+  });
+
+  app.querySelector("#ref-elapsed")?.addEventListener("input", (e) => {
+    const value = (e.target as HTMLInputElement).value.trim();
+    const refInput = app.querySelector<HTMLInputElement>(
+      `[data-gap-input="${state.race.referenceLane}"]`,
+    );
+    if (refInput) {
+      refInput.value = value || DEFAULT_ELAPSED;
+    }
   });
 
   app.querySelector("#ref-elapsed")?.addEventListener("change", (e) => {
@@ -503,8 +594,10 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
     updateRace((race) => setReferenceLane(race, lane, false));
   });
 
-  app.querySelector('[data-action="collapse-context"]')?.addEventListener("click", () => {
-    state.contextCollapsed = true;
+  app.querySelector('[data-action="toggle-context"]')?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!canCollapseContext(state.race)) return;
+    state.contextCollapsed = !state.contextCollapsed;
     render();
   });
 
@@ -583,6 +676,15 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
     });
   });
 
+  app.querySelectorAll("[data-results-sort]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      const sort = (e.target as HTMLButtonElement).dataset.resultsSort as "place" | "lane";
+      if (sort === state.resultsSort) return;
+      state.resultsSort = sort;
+      render();
+    });
+  });
+
   app.querySelectorAll("[data-copy-lane]").forEach((el) => {
     el.addEventListener("click", async (e) => {
       const btn = e.target as HTMLButtonElement;
@@ -590,7 +692,7 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
       const value = btn.dataset.copyValue ?? "";
       const ok = await copyText(value);
       if (ok) {
-        state.lastCopiedLane = lane;
+        state.copiedLanes.add(lane);
         announce(`Copied ${value}`);
         render();
       } else {
@@ -601,7 +703,7 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
 
   app.querySelector('[data-action="copy-all"]')?.addEventListener("click", async () => {
     if (!computed.valid) return;
-    const text = formatCopyAll(state.race, computed.results);
+    const text = formatCopyAll(state.race, sortResults(computed.results));
     const ok = await copyText(text);
     announce(ok ? "Copied all results" : "Select and copy manually");
   });
@@ -627,13 +729,15 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
       saveUndo();
       state.race = nextRace();
       state.restoredBanner = false;
-      state.lastCopiedLane = null;
+      state.copiedLanes.clear();
       state.contextCollapsed = false;
+      state.showResults = false;
     } else if (state.confirmAction === "clearJudge") {
       saveUndo();
       state.race = clearJudgeData(state.race);
       persistRace(state.race);
-      state.lastCopiedLane = null;
+      state.copiedLanes.clear();
+      state.showResults = false;
     } else if (state.confirmAction === "changeRef" && state.pendingReferenceLane !== null) {
       updateRace((race) => setReferenceLane(race, state.pendingReferenceLane!, true));
     }
