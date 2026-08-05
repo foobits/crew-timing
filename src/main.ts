@@ -136,7 +136,41 @@ function formatContextSummary(race: RaceDraft): string {
   return `Start of Race: ${start} · Reference Lane: ${race.referenceLane} · ${refElapsed} time on water`;
 }
 
+function captureFocus(): {
+  id: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+} | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)) {
+    return null;
+  }
+  if (!active.id) {
+    return null;
+  }
+  return {
+    id: active.id,
+    selectionStart: active.selectionStart,
+    selectionEnd: active.selectionEnd,
+  };
+}
+
+function restoreFocus(
+  focus: ReturnType<typeof captureFocus>,
+): void {
+  if (!focus) return;
+  const el = document.getElementById(focus.id);
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
+    return;
+  }
+  el.focus();
+  if (focus.selectionStart !== null && focus.selectionEnd !== null) {
+    el.setSelectionRange(focus.selectionStart, focus.selectionEnd);
+  }
+}
+
 function render(): void {
+  const focus = captureFocus();
   const computed = computeRace(state.race);
   const stale = isStaleDraft(state.race);
   const showFooter = hasRaceData(state.race);
@@ -211,6 +245,7 @@ function render(): void {
   }
 
   bindEvents(computed);
+  restoreFocus(focus);
 }
 
 function renderContextFields(stale: boolean): string {
