@@ -73,25 +73,33 @@ export function formatElapsedWhileTyping(input: string): string {
   return `${minutes}:${seconds}.${frac}`;
 }
 
-/** Sanitize gap input: decimal seconds by default, MM:SS.SSS if a colon is typed. */
+/** Sanitize gap input: decimal seconds when a dot is used, MM:SS.SSS otherwise. */
 export function formatGapWhileTyping(input: string): string {
-  const trimmed = input.trim();
-  if (trimmed.includes(":")) {
-    return formatElapsedWhileTyping(trimmed.replace(/^[+-]/, ""));
+  const trimmed = input.trim().replace(/^[+-]/, "");
+  if (!trimmed) return "";
+
+  if (trimmed.includes(":") || trimmed.includes(".")) {
+    if (trimmed.includes(":")) {
+      return formatElapsedWhileTyping(trimmed);
+    }
+
+    let sanitized = trimmed.replace(/[^\d.]/g, "");
+    const firstDot = sanitized.indexOf(".");
+    if (firstDot === -1) return sanitized;
+
+    const whole = sanitized.slice(0, firstDot);
+    const fraction = sanitized.slice(firstDot + 1).replace(/\./g, "").slice(0, 3);
+    if (fraction.length > 0 || sanitized.endsWith(".")) {
+      return `${whole}.${fraction}`;
+    }
+    return whole;
   }
 
-  let sanitized = trimmed.replace(/[^\d.]/g, "");
-  if (!sanitized) return "";
-
-  const firstDot = sanitized.indexOf(".");
-  if (firstDot === -1) return sanitized;
-
-  const whole = sanitized.slice(0, firstDot);
-  const fraction = sanitized.slice(firstDot + 1).replace(/\./g, "").slice(0, 3);
-  if (fraction.length > 0 || sanitized.endsWith(".")) {
-    return `${whole}.${fraction}`;
+  const digits = extractDigits(trimmed, 11);
+  if (digits.length >= 5) {
+    return formatElapsedWhileTyping(digits);
   }
-  return whole;
+  return digits;
 }
 
 /** Parse race start / finish timestamp: HH:MM:SS[.SSS] */

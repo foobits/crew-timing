@@ -269,7 +269,7 @@ function render(): void {
 
     <section class="card">
       <div class="section-header">
-        <h2>Lanes (splits) <span class="label-format">± sec.sss</span></h2>
+        <h2>Lanes (splits) <span class="label-format">± sec.sss or MM:SS.SSS</span></h2>
         <div class="lane-count-controls">
           <button type="button" class="btn btn-small" data-action="remove-lane" aria-label="Remove lane" tabindex="-1" ${state.race.lanes.length <= MIN_LANE_COUNT ? "disabled" : ""}>−</button>
           <span class="lane-count">${state.race.lanes.length}</span>

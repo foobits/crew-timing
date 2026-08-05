@@ -122,14 +122,16 @@ describe("format while typing", () => {
     expect(formatElapsedWhileTyping("0123450")).toBe("01:23.450");
   });
 
-  it("formats gap as decimal seconds by default", () => {
+  it("formats gap as decimal seconds when a dot is used", () => {
     expect(formatGapWhileTyping("2")).toBe("2");
     expect(formatGapWhileTyping("2.511")).toBe("2.511");
     expect(formatGapWhileTyping("2.5119")).toBe("2.511");
+    expect(formatGapWhileTyping("2511")).toBe("2511");
   });
 
-  it("formats gap with MM:SS when colon is typed", () => {
-    expect(formatGapWhileTyping("12345")).toBe("12345");
+  it("formats gap as MM:SS.SSS from sheet-style digits", () => {
+    expect(formatGapWhileTyping("123450")).toBe("1:23.450");
+    expect(formatGapWhileTyping("002340")).toBe("0:02.340");
     expect(formatGapWhileTyping("1:2345")).toBe("1:23.45");
   });
 });
