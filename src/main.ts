@@ -5,6 +5,7 @@ import {
   createEmptyRace,
   formatCopyAll,
   formatElapsed,
+  formatGap,
   formatTimestamp,
   hasRaceData,
   isStaleDraft,
@@ -44,6 +45,9 @@ interface AppState {
 }
 
 const PLACE_LABELS = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
+const DEFAULT_TIMESTAMP = formatTimestamp(0);
+const DEFAULT_ELAPSED = formatElapsed(0);
+const DEFAULT_GAP = formatGap({ ms: 0, negative: false });
 
 let state: AppState = {
   race: createEmptyRace(),
@@ -129,9 +133,13 @@ function saveUndo(): void {
 
 function formatContextSummary(race: RaceDraft): string {
   const start =
-    race.startTimestampMs !== null ? formatTimestamp(race.startTimestampMs) : "—";
+    race.startTimestampMs !== null
+      ? formatTimestamp(race.startTimestampMs)
+      : DEFAULT_TIMESTAMP;
   const refElapsed =
-    race.referenceElapsedMs !== null ? formatElapsed(race.referenceElapsedMs) : "—";
+    race.referenceElapsedMs !== null
+      ? formatElapsed(race.referenceElapsedMs)
+      : DEFAULT_ELAPSED;
 
   return `Start of Race: ${start} · Reference Lane: ${race.referenceLane} · ${refElapsed} time on water`;
 }
@@ -268,7 +276,7 @@ function renderContextFields(stale: boolean): string {
         Race start timestamp (from CrewTimer)
         <span class="label-format">HH:MM:SS.SSS</span>
       </label>
-      <input id="start-ts" type="text" inputmode="decimal" value="${escapeAttr(startValue)}" placeholder="13:08:01.491" autocomplete="off" />
+      <input id="start-ts" type="text" inputmode="decimal" value="${escapeAttr(startValue)}" placeholder="${DEFAULT_TIMESTAMP}" autocomplete="off" />
     </div>
     ${
       stale || !state.race.startConfirmed
@@ -279,10 +287,10 @@ function renderContextFields(stale: boolean): string {
     }
     <div class="field">
       <label for="ref-elapsed">
-        Reference elapsed
+        Reference lane time on water
         <span class="label-format">MM:SS.SSS</span>
       </label>
-      <input id="ref-elapsed" type="text" inputmode="decimal" value="${escapeAttr(refValue)}" placeholder="7:23.45" autocomplete="off" />
+      <input id="ref-elapsed" type="text" inputmode="decimal" value="${escapeAttr(refValue)}" placeholder="${DEFAULT_ELAPSED}" autocomplete="off" />
     </div>
     <div class="field">
       <label for="ref-lane">Reference lane</label>
@@ -301,7 +309,7 @@ function renderContextFields(stale: boolean): string {
 function renderLaneRow(lane: LaneDraft): string {
   const isRef = lane.lane === state.race.referenceLane;
   const gapValue = isRef
-    ? "0:00.000"
+    ? DEFAULT_GAP
     : lane.gapMs !== null
       ? `${lane.gapNegative ? "-" : ""}${formatGapInput(lane)}`
       : "";
@@ -319,7 +327,7 @@ function renderLaneRow(lane: LaneDraft): string {
         aria-label="Lane ${lane.lane} gap from reference"
         data-gap-input="${lane.lane}"
         value="${escapeAttr(gapValue)}"
-        placeholder="+0:02.34"
+        placeholder="${DEFAULT_GAP}"
         ${isRef || lane.status === "empty" ? "readonly" : ""}
       />
       ${renderLaneStatusToggle(lane, isRef)}
