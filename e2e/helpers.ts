@@ -51,6 +51,22 @@ export async function calculate(page: Page): Promise<void> {
   await page.locator("#results-card").scrollIntoViewIfNeeded();
 }
 
+export async function tapGapSign(page: Page, lane: number): Promise<void> {
+  await page.locator(`[data-gap-sign="${lane}"]`).tap();
+}
+
+export async function copyLaneTimestamp(page: Page, lane: number): Promise<void> {
+  await page.locator(`[data-copy-lane="${lane}"]`).click();
+}
+
+export async function expectLaneCopied(page: Page, lane: number): Promise<void> {
+  await expect(page.locator(`[data-result-lane="${lane}"]`)).toHaveClass(/copied/);
+}
+
+export async function expectGapSignNegative(page: Page, lane: number): Promise<void> {
+  await expect(page.locator(`[data-gap-sign="${lane}"]`)).toHaveClass(/gap-sign-btn--negative/);
+}
+
 export async function expectResultsVisible(page: Page, count?: number): Promise<void> {
   const errors = page.locator(".errors li");
   if (await errors.count()) {
