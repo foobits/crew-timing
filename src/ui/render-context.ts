@@ -1,8 +1,15 @@
 import { formatElapsed, formatRestoreTime, formatTimestamp } from "../lib/time";
-import { canCollapseContext, escapeAttr, escapeHtml } from "../lib/ui-helpers";
+import { canCollapseContext, escapeHtml } from "../lib/ui-helpers";
 import type { AppState } from "../app/types";
 import { DEFAULT_ELAPSED, DEFAULT_TIMESTAMP } from "../app/constants";
 import type { RaceDraft } from "../lib/race-state";
+import {
+  renderActionBanner,
+  renderBanner,
+  renderCheckboxField,
+  renderSelectField,
+  renderTextField,
+} from "./components";
 
 export function renderContextCaret(contextCollapsed: boolean): string {
   const expanded = !contextCollapsed;
@@ -39,39 +46,43 @@ export function renderContextFields(state: AppState, stale: boolean): string {
     state.race.referenceElapsedMs !== null ? formatElapsed(state.race.referenceElapsedMs) : "";
 
   return `
-    <div class="field">
-      <label for="event-label">Name (optional)</label>
-      <input id="event-label" type="text" value="${escapeAttr(state.race.eventLabel)}" placeholder="Mens 1V 8+ Heat 1" autocomplete="off" />
-    </div>
-    <div class="field">
-      <label for="start-ts">
-        Start time
-        <span class="label-format">HH:MM:SS.SSS</span>
-      </label>
-      <input id="start-ts" type="text" inputmode="decimal" value="${escapeAttr(startValue)}" placeholder="${DEFAULT_TIMESTAMP}" autocomplete="off" />
-    </div>
+    ${renderTextField({
+      id: "event-label",
+      label: "Name (optional)",
+      value: state.race.eventLabel,
+      placeholder: "Mens 1V 8+ Heat 1",
+    })}
+    ${renderTextField({
+      id: "start-ts",
+      label: "Start time",
+      formatHint: "HH:MM:SS.SSS",
+      value: startValue,
+      placeholder: DEFAULT_TIMESTAMP,
+      inputmode: "decimal",
+    })}
     ${
       stale || !state.race.startConfirmed
-        ? `<div class="field">
-            <label><input type="checkbox" id="start-confirmed" ${state.race.startConfirmed ? "checked" : ""} /> Confirm start timestamp is correct</label>
-          </div>`
+        ? renderCheckboxField({
+            id: "start-confirmed",
+            label: "Confirm start timestamp is correct",
+            checked: state.race.startConfirmed,
+          })
         : ""
     }
-    <div class="field">
-      <label for="ref-lane">Reference lane</label>
-      <select id="ref-lane">${state.race.lanes
-        .map((lane) => {
-          return `<option value="${lane.lane}" ${lane.lane === state.race.referenceLane ? "selected" : ""}>${lane.lane}</option>`;
-        })
-        .join("")}</select>
-    </div>
-    <div class="field">
-      <label for="ref-elapsed">
-        Reference lane time on water
-        <span class="label-format">MM:SS.SSS</span>
-      </label>
-      <input id="ref-elapsed" type="text" inputmode="decimal" value="${escapeAttr(refValue)}" placeholder="${DEFAULT_ELAPSED}" autocomplete="off" />
-    </div>
+    ${renderSelectField({
+      id: "ref-lane",
+      label: "Reference lane",
+      value: state.race.referenceLane,
+      options: state.race.lanes.map((lane) => ({ value: lane.lane, label: String(lane.lane) })),
+    })}
+    ${renderTextField({
+      id: "ref-elapsed",
+      label: "Reference lane time on water",
+      formatHint: "MM:SS.SSS",
+      value: refValue,
+      placeholder: DEFAULT_ELAPSED,
+      inputmode: "decimal",
+    })}
   `;
 }
 
@@ -96,10 +107,12 @@ export function renderContextSection(state: AppState, stale: boolean): string {
 
 export function renderRestoredBanner(state: AppState, stale: boolean): string {
   if (!state.restoredBanner) return "";
-  return `<div class="banner" role="status">Restored race draft from ${formatRestoreTime(state.race.updatedAt)}${stale ? " (different date — confirm start time)" : ""}</div>`;
+  return renderBanner(
+    `Restored race draft from ${formatRestoreTime(state.race.updatedAt)}${stale ? " (different date — confirm start time)" : ""}`,
+  );
 }
 
 export function renderUndoBanner(state: AppState): string {
   if (!state.undoSnapshot) return "";
-  return `<div class="banner"><button type="button" class="btn btn-secondary" data-action="undo">Undo last clear</button></div>`;
+  return renderActionBanner("undo", "Undo last clear");
 }

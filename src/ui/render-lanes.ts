@@ -3,35 +3,29 @@ import { escapeAttr, formatGapInput } from "../lib/ui-helpers";
 import type { AppState } from "../app/types";
 import { DEFAULT_ELAPSED, DEFAULT_GAP } from "../app/constants";
 import { MIN_LANE_COUNT, type LaneDraft } from "../lib/race-state";
+import { renderButton, renderSectionHeader, renderToggleGroup } from "./components";
 
 function renderLaneStatusToggle(lane: LaneDraft, isRef: boolean): string {
-  const activeSelected = lane.status === "active" ? " selected" : "";
-  const emptySelected = lane.status === "empty" ? " selected" : "";
-  const disabled = isRef ? " disabled" : "";
-  const toggleClass = isRef ? " lane-status-toggle--locked" : "";
-
-  return `
-    <div class="lane-status-toggle${toggleClass}" role="group" aria-label="Lane ${lane.lane} status"${isRef ? ' aria-disabled="true"' : ""}>
-      <button
-        type="button"
-        class="lane-status-btn${activeSelected}"
-        data-status="${lane.lane}"
-        data-status-value="active"
-        aria-pressed="${lane.status === "active"}"
-        tabindex="-1"
-        ${disabled}
-      >Active</button>
-      <button
-        type="button"
-        class="lane-status-btn${emptySelected}"
-        data-status="${lane.lane}"
-        data-status-value="empty"
-        aria-pressed="${lane.status === "empty"}"
-        tabindex="-1"
-        ${disabled}
-      >Empty</button>
-    </div>
-  `;
+  return renderToggleGroup({
+    ariaLabel: `Lane ${lane.lane} status`,
+    locked: isRef,
+    options: [
+      {
+        label: "Active",
+        selected: lane.status === "active",
+        ariaPressed: lane.status === "active",
+        disabled: isRef,
+        dataAttrs: { status: String(lane.lane), "status-value": "active" },
+      },
+      {
+        label: "Empty",
+        selected: lane.status === "empty",
+        ariaPressed: lane.status === "empty",
+        disabled: isRef,
+        dataAttrs: { status: String(lane.lane), "status-value": "empty" },
+      },
+    ],
+  });
 }
 
 function renderLaneRow(state: AppState, lane: LaneDraft): string {
@@ -84,7 +78,14 @@ function renderLaneRow(state: AppState, lane: LaneDraft): string {
         />
       </div>
       ${renderLaneStatusToggle(lane, isRef)}
-      <button type="button" class="btn btn-small" data-clear-lane="${lane.lane}" tabindex="-1" ${isRef ? "disabled" : ""} aria-label="Clear lane ${lane.lane}">Clear</button>
+      ${renderButton({
+        label: "Clear",
+        variant: "small",
+        tabindex: "-1",
+        disabled: isRef,
+        ariaLabel: `Clear lane ${lane.lane}`,
+        data: { "clear-lane": lane.lane },
+      })}
     </div>
   `;
 }
@@ -98,18 +99,32 @@ export function renderLaneGridHtml(state: AppState): string {
 }
 
 export function renderLanesSection(state: AppState): string {
+  const laneControls = `
+    <div class="lane-count-controls">
+      ${renderButton({
+        label: "−",
+        variant: "small",
+        action: "remove-lane",
+        tabindex: "-1",
+        ariaLabel: "Remove lane",
+        disabled: state.race.lanes.length <= MIN_LANE_COUNT,
+      })}
+      <span class="lane-count">${state.race.lanes.length}</span>
+      ${renderButton({
+        label: "+",
+        variant: "small",
+        action: "add-lane",
+        tabindex: "-1",
+        ariaLabel: "Add lane",
+      })}
+    </div>
+  `;
+
   return `
     <section class="card" id="lanes-section">
-      <div class="section-header">
-        <h2>Lanes (splits) <span class="label-format">± sec.sss or MM:SS.SSS</span></h2>
-        <div class="lane-count-controls">
-          <button type="button" class="btn btn-small" data-action="remove-lane" aria-label="Remove lane" tabindex="-1" ${state.race.lanes.length <= MIN_LANE_COUNT ? "disabled" : ""}>−</button>
-          <span class="lane-count">${state.race.lanes.length}</span>
-          <button type="button" class="btn btn-small" data-action="add-lane" aria-label="Add lane" tabindex="-1">+</button>
-        </div>
-      </div>
+      ${renderSectionHeader('Lanes (splits) <span class="label-format">± sec.sss or MM:SS.SSS</span>', laneControls)}
       <div class="lane-grid" id="lane-grid">${renderLaneGridHtml(state)}</div>
-      <button type="button" class="btn btn-primary lane-calculate" data-action="calculate">Calculate</button>
+      ${renderButton({ label: "Calculate", variant: "primary", action: "calculate", className: "lane-calculate" })}
     </section>
   `;
 }
