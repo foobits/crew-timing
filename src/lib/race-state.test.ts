@@ -4,8 +4,8 @@ import {
   clearJudgeData,
   computeRace,
   createEmptyRace,
+  DEFAULT_LANE_COUNT,
   hasRaceData,
-  MAX_LANE_COUNT,
   MIN_LANE_COUNT,
   nextRace,
   removeLane,
@@ -88,9 +88,22 @@ describe("setReferenceLane", () => {
 });
 
 describe("lane count", () => {
-  it("adds a lane up to the maximum", () => {
+  it("starts with the default lane count", () => {
+    const race = createEmptyRace();
+    expect(race.lanes.length).toBe(DEFAULT_LANE_COUNT);
+  });
+
+  it("adds lanes without a maximum", () => {
     let race = createEmptyRace();
-    expect(race.lanes.length).toBe(MAX_LANE_COUNT);
+    for (let lane = DEFAULT_LANE_COUNT + 1; lane <= 12; lane += 1) {
+      race = addLane(race);
+      expect(race.lanes.length).toBe(lane);
+      expect(race.lanes.at(-1)?.lane).toBe(lane);
+    }
+  });
+
+  it("adds a lane above the minimum", () => {
+    let race = createEmptyRace();
 
     while (race.lanes.length > MIN_LANE_COUNT) {
       race = removeLane(race);
@@ -105,8 +118,8 @@ describe("lane count", () => {
   it("removes the last lane down to the minimum", () => {
     let race = createEmptyRace();
     race = removeLane(race);
-    expect(race.lanes.length).toBe(MAX_LANE_COUNT - 1);
-    expect(race.lanes.at(-1)?.lane).toBe(MAX_LANE_COUNT - 1);
+    expect(race.lanes.length).toBe(DEFAULT_LANE_COUNT - 1);
+    expect(race.lanes.at(-1)?.lane).toBe(DEFAULT_LANE_COUNT - 1);
 
     while (race.lanes.length > MIN_LANE_COUNT) {
       race = removeLane(race);
@@ -117,9 +130,12 @@ describe("lane count", () => {
 
   it("moves reference to lane 1 when removing the reference lane", () => {
     let race = createEmptyRace();
-    race = { ...race, referenceLane: MAX_LANE_COUNT };
+    while (race.lanes.length < 10) {
+      race = addLane(race);
+    }
+    race = { ...race, referenceLane: 10 };
     race = removeLane(race);
-    expect(race.lanes.length).toBe(MAX_LANE_COUNT - 1);
+    expect(race.lanes.length).toBe(9);
     expect(race.referenceLane).toBe(1);
   });
 });
