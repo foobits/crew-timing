@@ -127,6 +127,15 @@ function saveUndo(): void {
   }, 30_000);
 }
 
+function formatContextSummary(race: RaceDraft): string {
+  const start =
+    race.startTimestampMs !== null ? formatTimestamp(race.startTimestampMs) : "—";
+  const refElapsed =
+    race.referenceElapsedMs !== null ? formatElapsed(race.referenceElapsedMs) : "—";
+
+  return `Start of Race: ${start} · Reference Lane: ${race.referenceLane} · ${refElapsed} time on water`;
+}
+
 function render(): void {
   const computed = computeRace(state.race);
   const stale = isStaleDraft(state.race);
@@ -146,7 +155,7 @@ function render(): void {
       ${
         state.contextCollapsed
           ? `<div class="context-summary" tabindex="0" role="button" aria-expanded="false" data-action="expand-context">
-              Start ${state.race.startTimestampMs !== null ? formatTimestamp(state.race.startTimestampMs) : "—"} · Ref L${state.race.referenceLane} ${state.race.referenceElapsedMs !== null ? formatElapsed(state.race.referenceElapsedMs) : "—"}
+              ${escapeHtml(formatContextSummary(state.race))}
             </div>`
           : ""
       }
@@ -264,12 +273,13 @@ function renderLaneRow(lane: LaneDraft): string {
 
   return `
     <div class="lane-row ${isRef ? "reference" : ""} ${lane.status === "empty" ? "empty-lane" : ""}" data-lane="${lane.lane}">
-      <div>
+      <div class="lane-label">
         <div class="lane-num">${lane.lane}</div>
         ${isRef ? `<div class="lane-ref-badge">REF</div>` : ""}
       </div>
       <input
         type="text"
+        class="lane-gap-input"
         inputmode="decimal"
         aria-label="Lane ${lane.lane} gap from reference"
         data-gap-input="${lane.lane}"
@@ -277,11 +287,35 @@ function renderLaneRow(lane: LaneDraft): string {
         placeholder="+0:02.34"
         ${isRef || lane.status === "empty" ? "readonly" : ""}
       />
-      <select data-status="${lane.lane}" aria-label="Lane ${lane.lane} status" ${isRef ? "disabled" : ""}>
-        <option value="active" ${lane.status === "active" ? "selected" : ""}>Active</option>
-        <option value="empty" ${lane.status === "empty" ? "selected" : ""}>Empty</option>
-      </select>
+      ${renderLaneStatusToggle(lane, isRef)}
       <button type="button" class="btn btn-small" data-clear-lane="${lane.lane}" ${isRef ? "disabled" : ""} aria-label="Clear lane ${lane.lane}">Clear</button>
+    </div>
+  `;
+}
+
+function renderLaneStatusToggle(lane: LaneDraft, isRef: boolean): string {
+  const activeSelected = lane.status === "active" ? " selected" : "";
+  const emptySelected = lane.status === "empty" ? " selected" : "";
+  const disabled = isRef ? " disabled" : "";
+
+  return `
+    <div class="lane-status-toggle" role="group" aria-label="Lane ${lane.lane} status">
+      <button
+        type="button"
+        class="lane-status-btn${activeSelected}"
+        data-status="${lane.lane}"
+        data-status-value="active"
+        aria-pressed="${lane.status === "active"}"
+        ${disabled}
+      >Active</button>
+      <button
+        type="button"
+        class="lane-status-btn${emptySelected}"
+        data-status="${lane.lane}"
+        data-status-value="empty"
+        aria-pressed="${lane.status === "empty"}"
+        ${disabled}
+      >Empty</button>
     </div>
   `;
 }
@@ -472,10 +506,13 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
     });
   });
 
-  app.querySelectorAll("[data-status]").forEach((el) => {
-    el.addEventListener("change", (e) => {
-      const laneNum = Number((e.target as HTMLSelectElement).dataset.status);
-      const status = (e.target as HTMLSelectElement).value as "active" | "empty";
+  app.querySelectorAll("[data-status-value]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      const btn = e.target as HTMLButtonElement;
+      if (btn.disabled) return;
+
+      const laneNum = Number(btn.dataset.status);
+      const status = btn.dataset.statusValue as "active" | "empty";
       updateRace((race) => ({
         ...race,
         lanes: race.lanes.map((lane) => {
