@@ -22,7 +22,10 @@ import {
   type RaceDraft,
 } from "./lib/race-state";
 import {
+  formatElapsedWhileTyping,
+  formatGapWhileTyping,
   formatRestoreTime,
+  formatTimestampWhileTyping,
   isParseFailure,
   parseElapsed,
   parseGap,
@@ -496,6 +499,17 @@ function renderConfirmDialog(): string {
   `;
 }
 
+function applyInputFormat(
+  input: HTMLInputElement,
+  format: (value: string) => string,
+): string {
+  const formatted = format(input.value);
+  if (formatted !== input.value) {
+    input.value = formatted;
+  }
+  return formatted;
+}
+
 function bindEvents(computed: ReturnType<typeof computeRace>): void {
   app.querySelector('[data-action="calculate"]')?.addEventListener("click", () => {
     state.showResults = true;
@@ -506,6 +520,10 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
   app.querySelector("#event-label")?.addEventListener("input", (e) => {
     const value = (e.target as HTMLInputElement).value;
     updateRace((race) => ({ ...race, eventLabel: value }));
+  });
+
+  app.querySelector("#start-ts")?.addEventListener("input", (e) => {
+    applyInputFormat(e.target as HTMLInputElement, formatTimestampWhileTyping);
   });
 
   app.querySelector("#start-ts")?.addEventListener("change", (e) => {
@@ -540,7 +558,8 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
   });
 
   app.querySelector("#ref-elapsed")?.addEventListener("input", (e) => {
-    const value = (e.target as HTMLInputElement).value.trim();
+    const input = e.target as HTMLInputElement;
+    const value = applyInputFormat(input, formatElapsedWhileTyping);
     const refInput = app.querySelector<HTMLInputElement>(
       `[data-gap-input="${state.race.referenceLane}"]`,
     );
@@ -615,6 +634,12 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
   });
 
   app.querySelectorAll("[data-gap-input]").forEach((el) => {
+    el.addEventListener("input", (e) => {
+      const input = e.target as HTMLInputElement;
+      if (input.readOnly) return;
+      applyInputFormat(input, formatGapWhileTyping);
+    });
+
     el.addEventListener("change", (e) => {
       const laneNum = Number((e.target as HTMLInputElement).dataset.gapInput);
       const value = (e.target as HTMLInputElement).value.trim();

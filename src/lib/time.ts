@@ -42,6 +42,47 @@ function parseDurationParts(
   return { ok: true, value: minutes * 60_000 + seconds * 1_000 + fractionMs };
 }
 
+function extractDigits(input: string, maxDigits: number): string {
+  return input.replace(/\D/g, "").slice(0, maxDigits);
+}
+
+/** Insert HH:MM:SS.SSS separators while typing digits on a decimal keypad. */
+export function formatTimestampWhileTyping(input: string): string {
+  const digits = extractDigits(input, 9);
+  const len = digits.length;
+  if (len <= 2) return digits;
+  if (len <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  if (len <= 6) return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4)}`;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}.${digits.slice(6)}`;
+}
+
+/** Insert MM:SS.SSS separators while typing digits on a decimal keypad. */
+export function formatElapsedWhileTyping(input: string): string {
+  const digits = extractDigits(input, 11);
+  const len = digits.length;
+  if (len === 0) return "";
+  if (len <= 2) return digits;
+  if (len === 3) return `${digits[0]}:${digits.slice(1)}`;
+  if (len === 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  if (len === 5) {
+    return `${digits.slice(0, len - 4)}:${digits.slice(len - 4, len - 2)}.${digits.slice(len - 2)}`;
+  }
+  const minutes = digits.slice(0, len - 5);
+  const seconds = digits.slice(len - 5, len - 3);
+  const frac = digits.slice(len - 3);
+  return `${minutes}:${seconds}.${frac}`;
+}
+
+/** Insert gap separators while preserving an optional leading sign. */
+export function formatGapWhileTyping(input: string): string {
+  const trimmed = input.trim();
+  const negative = trimmed.startsWith("-");
+  const body = trimmed.replace(/^[+-]/, "");
+  const formatted = formatElapsedWhileTyping(body);
+  if (!formatted) return negative ? "-" : "";
+  return negative ? `-${formatted}` : formatted;
+}
+
 /** Parse race start / finish timestamp: HH:MM:SS[.SSS] */
 export function parseTimestamp(input: string): ParseResult {
   const trimmed = input.trim();
