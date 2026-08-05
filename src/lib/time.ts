@@ -73,14 +73,25 @@ export function formatElapsedWhileTyping(input: string): string {
   return `${minutes}:${seconds}.${frac}`;
 }
 
-/** Insert gap separators while preserving an optional leading sign. */
+/** Sanitize gap input: decimal seconds by default, MM:SS.SSS if a colon is typed. */
 export function formatGapWhileTyping(input: string): string {
   const trimmed = input.trim();
-  const negative = trimmed.startsWith("-");
-  const body = trimmed.replace(/^[+-]/, "");
-  const formatted = formatElapsedWhileTyping(body);
-  if (!formatted) return negative ? "-" : "";
-  return negative ? `-${formatted}` : formatted;
+  if (trimmed.includes(":")) {
+    return formatElapsedWhileTyping(trimmed.replace(/^[+-]/, ""));
+  }
+
+  let sanitized = trimmed.replace(/[^\d.]/g, "");
+  if (!sanitized) return "";
+
+  const firstDot = sanitized.indexOf(".");
+  if (firstDot === -1) return sanitized;
+
+  const whole = sanitized.slice(0, firstDot);
+  const fraction = sanitized.slice(firstDot + 1).replace(/\./g, "").slice(0, 3);
+  if (fraction.length > 0 || sanitized.endsWith(".")) {
+    return `${whole}.${fraction}`;
+  }
+  return whole;
 }
 
 /** Parse race start / finish timestamp: HH:MM:SS[.SSS] */
