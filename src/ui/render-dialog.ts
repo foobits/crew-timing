@@ -1,4 +1,5 @@
 import type { AppState, ConfirmAction } from "../app/types";
+import { renderButton } from "./components";
 
 const CONFIRM_MESSAGES: Record<ConfirmAction, string> = {
   nextRace: "Clear this race and start the next one?",
@@ -14,8 +15,8 @@ export function renderConfirmDialog(state: AppState): string {
       <div class="confirm-dialog">
         <p>${CONFIRM_MESSAGES[state.confirmAction]}</p>
         <div class="confirm-actions">
-          <button type="button" class="btn btn-small" data-action="confirm-cancel">Cancel</button>
-          <button type="button" class="btn btn-primary" data-action="confirm-ok">Confirm</button>
+          ${renderButton({ label: "Cancel", variant: "small", action: "confirm-cancel" })}
+          ${renderButton({ label: "Confirm", variant: "primary", action: "confirm-ok" })}
         </div>
       </div>
     </div>
@@ -32,8 +33,8 @@ export function renderFooter(showFooter: boolean): void {
   footerEl.id = "footer-actions";
   footerEl.className = "footer-actions";
   footerEl.innerHTML = `
-    <button type="button" class="btn btn-primary" data-action="next-race">Next race</button>
-    <button type="button" class="btn btn-secondary" data-action="clear-judge">Clear judge data</button>
+    ${renderButton({ label: "Next race", variant: "primary", action: "next-race" })}
+    ${renderButton({ label: "Clear judge data", variant: "secondary", action: "clear-judge" })}
   `;
   document.body.appendChild(footerEl);
 }

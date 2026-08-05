@@ -2,27 +2,28 @@ import { escapeHtml } from "../lib/ui-helpers";
 import type { AppState } from "../app/types";
 import { PLACE_LABELS } from "../app/constants";
 import type { ComputedRace, LaneResult } from "../lib/race-state";
+import { renderButton, renderToggleGroup } from "./components";
 
 function renderResultsSortToggle(resultsSort: AppState["resultsSort"]): string {
-  const placeSelected = resultsSort === "place" ? " selected" : "";
-  const laneSelected = resultsSort === "lane" ? " selected" : "";
-
-  return `
-    <div class="results-sort-toggle lane-status-toggle" role="group" aria-label="Sort results">
-      <button
-        type="button"
-        class="lane-status-btn${placeSelected}"
-        data-results-sort="place"
-        aria-pressed="${resultsSort === "place"}"
-      >Place</button>
-      <button
-        type="button"
-        class="lane-status-btn${laneSelected}"
-        data-results-sort="lane"
-        aria-pressed="${resultsSort === "lane"}"
-      >Lane</button>
-    </div>
-  `;
+  return renderToggleGroup({
+    ariaLabel: "Sort results",
+    className: "results-sort-toggle",
+    tabindex: "0",
+    options: [
+      {
+        label: "Place",
+        selected: resultsSort === "place",
+        ariaPressed: resultsSort === "place",
+        dataAttrs: { "results-sort": "place" },
+      },
+      {
+        label: "Lane",
+        selected: resultsSort === "lane",
+        ariaPressed: resultsSort === "lane",
+        dataAttrs: { "results-sort": "lane" },
+      },
+    ],
+  });
 }
 
 function renderResultCard(state: AppState, result: LaneResult): string {
@@ -35,7 +36,11 @@ function renderResultCard(state: AppState, result: LaneResult): string {
       <div class="result-place">${place} · Lane ${result.lane}${tied}</div>
       <div class="timestamp-label">CrewTimer finish timestamp</div>
       <div class="timestamp-value">${result.finishFormatted}</div>
-      <button type="button" class="btn btn-copy" data-copy-lane="${result.lane}" data-copy-value="${result.finishFormatted}">Copy timestamp</button>
+      ${renderButton({
+        label: "Copy timestamp",
+        variant: "copy",
+        data: { "copy-lane": result.lane, "copy-value": result.finishFormatted },
+      })}
       <div class="elapsed-check">Calculated elapsed time: ${result.elapsedFormatted}</div>
     </article>
   `;
@@ -66,7 +71,7 @@ function renderResultsHeaderActions(state: AppState, computed: ComputedRace): st
   if (!state.showResults || !computed.valid) return "";
   return `<div class="results-header-actions">
                 ${renderResultsSortToggle(state.resultsSort)}
-                <button type="button" class="btn btn-small" data-action="copy-all">Copy all</button>
+                ${renderButton({ label: "Copy all", variant: "small", action: "copy-all" })}
               </div>`;
 }
 
