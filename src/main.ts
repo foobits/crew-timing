@@ -17,18 +17,28 @@ import {
   setReferenceLane,
   touchRace,
   type LaneDraft,
-  type LaneResult,
   type RaceDraft,
 } from "./lib/race-state";
+import {
+  applyLaneGapToRace,
+  applyReferenceElapsedToRace,
+  applyStartTimestampToRace,
+  commitPendingFormFields,
+  isFieldApplyFailure,
+} from "./lib/form-commit";
+import {
+  applyInputFormatValue,
+  canCollapseContext,
+  escapeAttr,
+  escapeHtml,
+  formatGapInput,
+  sortResults,
+} from "./lib/ui-helpers";
 import {
   formatElapsedWhileTyping,
   formatGapWhileTyping,
   formatRestoreTime,
   formatTimestampWhileTyping,
-  isParseFailure,
-  parseElapsed,
-  parseTimestamp,
-  todayDateString,
 } from "./lib/time";
 import { registerSW } from "virtual:pwa-register";
 
@@ -137,10 +147,6 @@ function saveUndo(): void {
   }, 30_000);
 }
 
-function canCollapseContext(race: RaceDraft): boolean {
-  return race.startTimestampMs !== null && race.referenceElapsedMs !== null;
-}
-
 function renderContextCaret(): string {
   const expanded = !state.contextCollapsed;
   return `
@@ -206,13 +212,6 @@ function restoreFocus(
   }
 }
 
-function sortResults(results: LaneResult[]): LaneResult[] {
-  if (state.resultsSort === "lane") {
-    return [...results].sort((a, b) => a.lane - b.lane);
-  }
-  return results;
-}
-
 function renderResultsSortToggle(): string {
   const placeSelected = state.resultsSort === "place" ? " selected" : "";
   const laneSelected = state.resultsSort === "lane" ? " selected" : "";
@@ -238,7 +237,7 @@ function renderResultsSortToggle(): string {
 function render(): void {
   const focus = captureFocus();
   const computed = computeRace(state.race);
-  const displayedResults = computed.valid ? sortResults(computed.results) : [];
+  const displayedResults = computed.valid ? sortResults(computed.results, state.resultsSort) : [];
   const stale = isStaleDraft(state.race);
   const showFooter = hasRaceData(state.race);
 
@@ -454,20 +453,6 @@ function renderLaneStatusToggle(lane: LaneDraft, isRef: boolean): string {
   `;
 }
 
-function formatGapInput(lane: LaneDraft): string {
-  if (lane.gapMs === null) return "";
-  const mins = Math.floor(lane.gapMs / 60_000);
-  const secs = Math.floor((lane.gapMs % 60_000) / 1_000);
-  const ms = lane.gapMs % 1_000;
-  if (mins > 0) {
-    return `${mins}:${String(secs).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
-  }
-  if (ms > 0 || secs > 0) {
-    return `${secs}.${String(ms).padStart(3, "0").replace(/0+$/, "").replace(/\.$/, "") || "0"}`;
-  }
-  return "0";
-}
-
 function renderResultCard(result: {
   lane: number;
   place: number;
@@ -516,7 +501,7 @@ function applyInputFormat(
   input: HTMLInputElement,
   format: (value: string) => string,
 ): string {
-  const formatted = format(input.value);
+  const formatted = applyInputFormatValue(input.value, format);
   if (formatted !== input.value) {
     input.value = formatted;
   }
@@ -531,88 +516,59 @@ function syncRace(updater: (race: RaceDraft) => RaceDraft): void {
 }
 
 function applyStartTimestamp(value: string, announceOnError: boolean): void {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    syncRace((race) => ({
-      ...race,
-      startTimestampMs: null,
-      startDate: todayDateString(),
-      startConfirmed: true,
-    }));
+  const result = applyStartTimestampToRace(state.race, value);
+  if (isFieldApplyFailure(result)) {
+    if (announceOnError) announce(result.error);
     return;
   }
-
-  const parsed = parseTimestamp(trimmed);
-  if (isParseFailure(parsed)) {
-    if (announceOnError) announce(parsed.error);
-    return;
-  }
-
-  syncRace((race) => ({
-    ...race,
-    startTimestampMs: parsed.value,
-    startDate: todayDateString(),
-    startConfirmed: true,
-  }));
-  state.restoredBanner = false;
+  syncRace(() => result.race);
+  if (value.trim()) state.restoredBanner = false;
 }
 
 function applyReferenceElapsed(value: string, announceOnError: boolean): void {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    syncRace((race) => ({ ...race, referenceElapsedMs: null }));
+  const result = applyReferenceElapsedToRace(state.race, value);
+  if (isFieldApplyFailure(result)) {
+    if (announceOnError) announce(result.error);
     return;
   }
-
-  const parsed = parseElapsed(trimmed);
-  if (isParseFailure(parsed)) {
-    if (announceOnError) announce(parsed.error);
-    return;
-  }
-
-  syncRace((race) => ({ ...race, referenceElapsedMs: parsed.value }));
+  syncRace(() => result.race);
 }
 
 function applyLaneGap(laneNum: number, value: string, announceOnError: boolean): void {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    syncRace((race) => ({
-      ...race,
-      lanes: race.lanes.map((lane) =>
-        lane.lane === laneNum ? { ...lane, gapMs: null, gapNegative: false } : lane,
-      ),
-    }));
+  const result = applyLaneGapToRace(state.race, laneNum, value);
+  if (isFieldApplyFailure(result)) {
+    if (announceOnError) announce(result.error);
     return;
   }
-
-  const parsed = parseElapsed(trimmed);
-  if (isParseFailure(parsed)) {
-    if (announceOnError) announce(parsed.error);
-    return;
-  }
-
-  syncRace((race) => ({
-    ...race,
-    lanes: race.lanes.map((lane) =>
-      lane.lane === laneNum
-        ? { ...lane, gapMs: parsed.value, gapNegative: lane.gapNegative, status: "active" }
-        : lane,
-    ),
-  }));
+  syncRace(() => result.race);
 }
 
 /** Read live input values into state. Mobile often skips change until blur. */
 function commitAllFormFields(announceOnError: boolean): void {
   const startInput = app.querySelector<HTMLInputElement>("#start-ts");
-  if (startInput) applyStartTimestamp(startInput.value, announceOnError);
-
   const refInput = app.querySelector<HTMLInputElement>("#ref-elapsed");
-  if (refInput) applyReferenceElapsed(refInput.value, announceOnError);
+  const laneGaps = Array.from(
+    app.querySelectorAll<HTMLInputElement>("[data-gap-input]"),
+  ).map((input) => ({
+      lane: Number(input.dataset.gapInput),
+      value: input.value,
+      readOnly: input.readOnly,
+    }),
+  );
 
-  app.querySelectorAll<HTMLInputElement>("[data-gap-input]").forEach((input) => {
-    if (input.readOnly) return;
-    applyLaneGap(Number(input.dataset.gapInput), input.value, announceOnError);
+  const { race, errors } = commitPendingFormFields(state.race, {
+    startTimestamp: startInput?.value,
+    referenceElapsed: refInput?.value,
+    laneGaps,
   });
+
+  state.race = race;
+  if (hasRaceData(state.race)) {
+    persistRace(state.race);
+  }
+  if (announceOnError) {
+    for (const error of errors) announce(error);
+  }
 }
 
 function bindEvents(computed: ReturnType<typeof computeRace>): void {
@@ -810,7 +766,7 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
 
   app.querySelector('[data-action="copy-all"]')?.addEventListener("click", async () => {
     if (!computed.valid) return;
-    const text = formatCopyAll(state.race, sortResults(computed.results));
+    const text = formatCopyAll(state.race, sortResults(computed.results, state.resultsSort));
     const ok = await copyText(text);
     announce(ok ? "Copied all results" : "Select and copy manually");
   });
@@ -866,18 +822,6 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
       render();
     }
   });
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function escapeAttr(text: string): string {
-  return escapeHtml(text).replace(/'/g, "&#39;");
 }
 
 init();

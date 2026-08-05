@@ -5,11 +5,13 @@ import {
   formatElapsedWhileTyping,
   formatGap,
   formatGapWhileTyping,
+  formatRestoreTime,
   formatTimestamp,
   formatTimestampWhileTyping,
   parseElapsed,
   parseGap,
   parseTimestamp,
+  todayDateString,
 } from "./time";
 
 describe("parseTimestamp", () => {
@@ -21,6 +23,7 @@ describe("parseTimestamp", () => {
 
   it("rejects invalid values", () => {
     expect(parseTimestamp("").ok).toBe(false);
+    expect(parseTimestamp("abc").ok).toBe(false);
     expect(parseTimestamp("25:00:00").ok).toBe(false);
     expect(parseTimestamp("12:60:00").ok).toBe(false);
     expect(parseTimestamp("12:00:00.1234").ok).toBe(false);
@@ -32,6 +35,12 @@ describe("parseElapsed", () => {
     expect(parseElapsed("7:23.45")).toEqual({ ok: true, value: 443_450 });
     expect(parseElapsed("07:23.450")).toEqual({ ok: true, value: 443_450 });
     expect(parseElapsed("143")).toEqual({ ok: true, value: 143_000 });
+  });
+
+  it("rejects invalid elapsed values", () => {
+    expect(parseElapsed("").ok).toBe(false);
+    expect(parseElapsed("abc").ok).toBe(false);
+    expect(parseElapsed("7:99.00").ok).toBe(false);
   });
 });
 
@@ -56,6 +65,19 @@ describe("parseGap", () => {
 
   it("rejects space after sign", () => {
     expect(parseGap("+ 2.34").ok).toBe(false);
+  });
+
+  it("rejects invalid gap bodies", () => {
+    expect(parseGap("-abc").ok).toBe(false);
+    expect(parseGap("").ok).toBe(false);
+  });
+
+  it("parses colon-form gaps", () => {
+    expect(parseGap("+1:23.450")).toEqual({
+      ok: true,
+      value: 83_450,
+      signed: { ms: 83_450, negative: false },
+    });
   });
 });
 
@@ -133,6 +155,16 @@ describe("format while typing", () => {
     expect(formatGapWhileTyping("123450")).toBe("1:23.450");
     expect(formatGapWhileTyping("002340")).toBe("0:02.340");
     expect(formatGapWhileTyping("1:2345")).toBe("1:23.45");
+  });
+});
+
+describe("utility formatting", () => {
+  it("formats restore time for banners", () => {
+    expect(formatRestoreTime("2026-08-05T18:30:00.000Z")).toMatch(/\d/);
+  });
+
+  it("returns today as YYYY-MM-DD", () => {
+    expect(todayDateString()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 

@@ -34,5 +34,19 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    include: ["src/**/*.test.ts"],
+    exclude: ["e2e/**"],
+    setupFiles: ["src/test-setup.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/lib/**/*.ts"],
+      exclude: ["src/lib/**/*.test.ts"],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        statements: 90,
+        branches: 83,
+      },
+    },
   },
 });

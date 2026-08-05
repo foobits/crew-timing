@@ -2,12 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   addLane,
   clearJudgeData,
+  clearPersistedRace,
   computeRace,
   createEmptyRace,
   DEFAULT_LANE_COUNT,
+  formatCopyAll,
+  formatGapDisplay,
   hasRaceData,
+  isStaleDraft,
+  loadPersistedRace,
   MIN_LANE_COUNT,
   nextRace,
+  persistRace,
   removeLane,
   setReferenceLane,
   type RaceDraft,
@@ -79,11 +85,25 @@ describe("setReferenceLane", () => {
     expect(ref?.elapsedFormatted).toBe("02:25.790");
   });
 
+  it("no-ops when selecting the current reference lane", () => {
+    const race = sampleRace();
+    const next = setReferenceLane(race, race.referenceLane);
+    expect(next.referenceLane).toBe(race.referenceLane);
+    expect(next.lanes).toEqual(race.lanes);
+  });
+
   it("resets lanes when new reference has no gap", () => {
     let race = sampleRace();
     race = setReferenceLane(race, 2, true);
     expect(race.lanes.find((l) => l.lane === 2)?.gapMs).toBe(0);
     expect(race.lanes.find((l) => l.lane === 5)?.gapMs).toBe(null);
+  });
+
+  it("rebase can produce negative relative gaps", () => {
+    let race = sampleRace();
+    race = setReferenceLane(race, 5);
+    const lane3 = race.lanes.find((lane) => lane.lane === 3);
+    expect(lane3?.gapNegative).toBe(true);
   });
 });
 
@@ -159,5 +179,108 @@ describe("hasRaceData", () => {
   it("detects entered data", () => {
     expect(hasRaceData(createEmptyRace())).toBe(false);
     expect(hasRaceData(sampleRace())).toBe(true);
+  });
+
+  it("detects event label and empty lanes", () => {
+    const race = createEmptyRace();
+    expect(hasRaceData({ ...race, eventLabel: "Heat 1" })).toBe(true);
+    expect(
+      hasRaceData({
+        ...race,
+        lanes: race.lanes.map((lane) =>
+          lane.lane === 2 ? { ...lane, status: "empty" } : lane,
+        ),
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("persistence", () => {
+  it("round-trips race drafts through localStorage", () => {
+    const race = sampleRace();
+    persistRace(race);
+    const loaded = loadPersistedRace();
+    expect(loaded?.startTimestampMs).toBe(race.startTimestampMs);
+    expect(loaded?.lanes.length).toBe(race.lanes.length);
+    clearPersistedRace();
+    expect(loadPersistedRace()).toBe(null);
+  });
+
+  it("rejects invalid persisted drafts", () => {
+    localStorage.setItem("crew-timing-race-draft", "{");
+    expect(loadPersistedRace()).toBe(null);
+  });
+
+  it("rejects drafts with too few lanes", () => {
+    localStorage.setItem(
+      "crew-timing-race-draft",
+      JSON.stringify({ ...sampleRace(), lanes: [] }),
+    );
+    expect(loadPersistedRace()).toBe(null);
+  });
+});
+
+describe("formatCopyAll", () => {
+  it("includes event label and result lines", () => {
+    const computed = computeRace(sampleRace());
+    const text = formatCopyAll(sampleRace(), computed.results);
+    expect(text).toContain("Mens 1V Heat 2");
+    expect(text).toContain("Start: 13:08:01.491");
+    expect(text).toContain("Lane 5");
+  });
+});
+
+describe("formatGapDisplay", () => {
+  it("formats signed gap display", () => {
+    expect(
+      formatGapDisplay({
+        lane: 2,
+        status: "active",
+        gapMs: 2_340,
+        gapNegative: true,
+      }),
+    ).toBe("-00:02.340");
+  });
+});
+
+describe("isStaleDraft", () => {
+  it("flags drafts from another date", () => {
+    const race = sampleRace();
+    expect(isStaleDraft({ ...race, startDate: "2020-01-01" })).toBe(true);
+  });
+});
+
+describe("computeRace edge cases", () => {
+  it("handles tied places", () => {
+    const race = sampleRace();
+    race.lanes = race.lanes.map((lane) => {
+      if (lane.lane === 4) {
+        return { ...lane, status: "active", gapMs: 2_340, gapNegative: false };
+      }
+      if (lane.lane === 5) {
+        return { ...lane, status: "active", gapMs: 2_340, gapNegative: false };
+      }
+      return lane;
+    });
+    const computed = computeRace(race);
+    expect(computed.valid).toBe(true);
+    const lane4 = computed.results.find((r) => r.lane === 4);
+    const lane5 = computed.results.find((r) => r.lane === 5);
+    expect(lane4?.place).toBe(lane5?.place);
+    expect(lane4?.tied).toBe(true);
+  });
+
+  it("requires a start timestamp", () => {
+    const race = sampleRace();
+    race.startTimestampMs = null;
+    const computed = computeRace(race);
+    expect(computed.errors).toContain("Enter a race start timestamp.");
+  });
+
+  it("requires reference elapsed time", () => {
+    const race = sampleRace();
+    race.referenceElapsedMs = null;
+    const computed = computeRace(race);
+    expect(computed.errors).toContain("Enter reference elapsed time.");
   });
 });
