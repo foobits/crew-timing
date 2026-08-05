@@ -75,31 +75,35 @@ export function formatElapsedWhileTyping(input: string): string {
 
 /** Sanitize gap input: decimal seconds when a dot is used, MM:SS.SSS otherwise. */
 export function formatGapWhileTyping(input: string): string {
+  const leadingNegative = input.trimStart().startsWith("-");
   const trimmed = input.trim().replace(/^[+-]/, "");
-  if (!trimmed) return "";
+  if (!trimmed) return leadingNegative ? "-" : "";
 
+  let formatted: string;
   if (trimmed.includes(":") || trimmed.includes(".")) {
     if (trimmed.includes(":")) {
-      return formatElapsedWhileTyping(trimmed);
+      formatted = formatElapsedWhileTyping(trimmed);
+    } else {
+      let sanitized = trimmed.replace(/[^\d.]/g, "");
+      const firstDot = sanitized.indexOf(".");
+      if (firstDot === -1) {
+        formatted = sanitized;
+      } else {
+        const whole = sanitized.slice(0, firstDot);
+        const fraction = sanitized.slice(firstDot + 1).replace(/\./g, "").slice(0, 3);
+        if (fraction.length > 0 || sanitized.endsWith(".")) {
+          formatted = `${whole}.${fraction}`;
+        } else {
+          formatted = whole;
+        }
+      }
     }
-
-    let sanitized = trimmed.replace(/[^\d.]/g, "");
-    const firstDot = sanitized.indexOf(".");
-    if (firstDot === -1) return sanitized;
-
-    const whole = sanitized.slice(0, firstDot);
-    const fraction = sanitized.slice(firstDot + 1).replace(/\./g, "").slice(0, 3);
-    if (fraction.length > 0 || sanitized.endsWith(".")) {
-      return `${whole}.${fraction}`;
-    }
-    return whole;
+  } else {
+    const digits = extractDigits(trimmed, 11);
+    formatted = digits.length >= 5 ? formatElapsedWhileTyping(digits) : digits;
   }
 
-  const digits = extractDigits(trimmed, 11);
-  if (digits.length >= 5) {
-    return formatElapsedWhileTyping(digits);
-  }
-  return digits;
+  return leadingNegative ? `-${formatted}` : formatted;
 }
 
 /** Parse race start / finish timestamp: HH:MM:SS[.SSS] */
@@ -257,8 +261,11 @@ export function elapsedBetweenTimestamps(
   return finishMs - startMs + dayOffset * MS_PER_DAY;
 }
 
-export function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+export function todayDateString(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function formatRestoreTime(iso: string): string {

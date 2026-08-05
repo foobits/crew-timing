@@ -5,6 +5,7 @@ import { createInitialState, loadPersistedState } from "./state";
 import { bindEventsOnce } from "../ui/bind-events";
 import { invalidateComputedRace, getComputedRace, applyRenderScope } from "../ui/patch-dom";
 import { initToast } from "../ui/toast";
+import { flushPendingPersist } from "./persist-scheduler";
 import { mergeRenderScope, type RenderScope } from "./render-scope";
 
 export function createApp(root: HTMLElement, toast: HTMLElement): { init(): void } {
@@ -58,6 +59,9 @@ export function createApp(root: HTMLElement, toast: HTMLElement): { init(): void
   };
 
   bindEventsOnce(root, actions);
+
+  window.addEventListener("beforeunload", flushPendingPersist);
+  window.addEventListener("pagehide", flushPendingPersist);
 
   return {
     init(): void {

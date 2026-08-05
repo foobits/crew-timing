@@ -71,3 +71,36 @@ describe("flushPersistRace", () => {
     expect(loadPersistedRace()?.eventLabel).toBe("Flush now");
   });
 });
+
+describe("flushPendingPersist", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("persists the latest debounced draft without waiting for the timer", async () => {
+    const { schedulePersistRace, flushPendingPersist } = await import("./persist-scheduler");
+    const race = touchRace({ ...createEmptyRace(), eventLabel: "Pending flush" });
+
+    schedulePersistRace(race);
+    expect(loadPersistedRace()).toBeNull();
+
+    flushPendingPersist();
+    expect(loadPersistedRace()?.eventLabel).toBe("Pending flush");
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(loadPersistedRace()?.eventLabel).toBe("Pending flush");
+  });
+
+  it("is a no-op when nothing is pending", async () => {
+    const { flushPendingPersist } = await import("./persist-scheduler");
+
+    flushPendingPersist();
+    expect(loadPersistedRace()).toBeNull();
+  });
+});

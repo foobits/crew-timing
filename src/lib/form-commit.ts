@@ -1,5 +1,5 @@
 import { touchRace, type RaceDraft } from "./race-state";
-import { isParseFailure, parseElapsed, parseTimestamp, todayDateString } from "./time";
+import { isParseFailure, parseElapsed, parseGap, parseTimestamp, todayDateString } from "./time";
 
 export type ApplyFieldResult =
   | { ok: true; race: RaceDraft }
@@ -85,6 +85,33 @@ export function applyLaneGapToRace(
     };
   }
 
+  const lane = race.lanes.find((entry) => entry.lane === laneNum);
+  const hasExplicitSign = /^[+-]/.test(trimmed);
+
+  if (hasExplicitSign) {
+    const parsed = parseGap(trimmed);
+    if (isParseFailure(parsed) || !parsed.signed) {
+      return { ok: false, race, error: isParseFailure(parsed) ? parsed.error : "Invalid gap format." };
+    }
+
+    return {
+      ok: true,
+      race: touchRace({
+        ...race,
+        lanes: race.lanes.map((entry) =>
+          entry.lane === laneNum
+            ? {
+                ...entry,
+                gapMs: parsed.signed.ms,
+                gapNegative: parsed.signed.negative,
+                status: "active",
+              }
+            : entry,
+        ),
+      }),
+    };
+  }
+
   const parsed = parseElapsed(trimmed);
   if (isParseFailure(parsed)) {
     return { ok: false, race, error: parsed.error };
@@ -94,15 +121,15 @@ export function applyLaneGapToRace(
     ok: true,
     race: touchRace({
       ...race,
-      lanes: race.lanes.map((lane) =>
-        lane.lane === laneNum
+      lanes: race.lanes.map((entry) =>
+        entry.lane === laneNum
           ? {
-              ...lane,
+              ...entry,
               gapMs: parsed.value,
-              gapNegative: lane.gapNegative,
+              gapNegative: lane?.gapNegative ?? false,
               status: "active",
             }
-          : lane,
+          : entry,
       ),
     }),
   };

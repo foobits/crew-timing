@@ -4,12 +4,23 @@ import {
   expectNoReferenceElapsedError,
   expectResultsVisible,
   fillTimeInput,
+  gotoApp,
   setInputWithoutCommit,
 } from "./helpers";
+import { canWebKitNavigate } from "./webkit-probe";
 
 test.describe("mobile race flow", () => {
+  test.beforeAll(async ({ baseURL }) => {
+    if (!baseURL || !(await canWebKitNavigate(baseURL))) {
+      test.skip(
+        true,
+        "Playwright WebKit cannot reach the preview server in this environment (known on macOS 26+ locally; CI on Ubuntu is the source of truth)",
+      );
+    }
+  });
+
   test("calculates without blurring reference elapsed or splits", async ({ page }) => {
-    await page.goto("/");
+    await gotoApp(page);
 
     await setInputWithoutCommit(page, "#start-ts", "10:05:03.111");
     await setInputWithoutCommit(page, "#ref-elapsed", "01:23.450");
@@ -23,7 +34,7 @@ test.describe("mobile race flow", () => {
   });
 
   test("supports sign toggle and decimal entry on narrow viewport", async ({ page }) => {
-    await page.goto("/");
+    await gotoApp(page);
 
     await setInputWithoutCommit(page, "#start-ts", "10:05:03.111");
     await setInputWithoutCommit(page, "#ref-elapsed", "01:23.450");
@@ -40,7 +51,7 @@ test.describe("mobile race flow", () => {
   });
 
   test("auto-formats sheet-style MM:SS digits in split fields", async ({ page }) => {
-    await page.goto("/");
+    await gotoApp(page);
 
     await fillTimeInput(page, "#start-ts", "100503111");
     await fillTimeInput(page, "#ref-elapsed", "0123450");

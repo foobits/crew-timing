@@ -1,5 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 
+export async function gotoApp(page: Page): Promise<void> {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.locator("#start-ts").waitFor();
+}
+
 export async function fillRaceContext(page: Page): Promise<void> {
   await fillTimeInput(page, "#start-ts", "100503111");
   await fillTimeInput(page, "#ref-elapsed", "0123450");
