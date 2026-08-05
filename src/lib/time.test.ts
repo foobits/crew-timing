@@ -156,6 +156,11 @@ describe("format while typing", () => {
     expect(formatGapWhileTyping("002340")).toBe("0:02.340");
     expect(formatGapWhileTyping("1:2345")).toBe("1:23.45");
   });
+
+  it("preserves a leading minus for pasted negative gaps", () => {
+    expect(formatGapWhileTyping("-2.511")).toBe("-2.511");
+    expect(formatGapWhileTyping("-123450")).toBe("-1:23.450");
+  });
 });
 
 describe("utility formatting", () => {
@@ -163,8 +168,9 @@ describe("utility formatting", () => {
     expect(formatRestoreTime("2026-08-05T18:30:00.000Z")).toMatch(/\d/);
   });
 
-  it("returns today as YYYY-MM-DD", () => {
-    expect(todayDateString()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it("returns today as YYYY-MM-DD in local time", () => {
+    expect(todayDateString(new Date(2026, 7, 5, 23, 30))).toBe("2026-08-05");
+    expect(todayDateString(new Date(2026, 7, 6, 0, 30))).toBe("2026-08-06");
   });
 });
 

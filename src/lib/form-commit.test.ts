@@ -87,6 +87,15 @@ describe("applyLaneGapToRace", () => {
     expect(result.race.lanes.find((lane) => lane.lane === 2)?.gapNegative).toBe(true);
   });
 
+  it("honors an explicit leading minus in the gap value", () => {
+    const result = applyLaneGapToRace(createEmptyRace(), 2, "-2.511");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const lane2 = result.race.lanes.find((lane) => lane.lane === 2);
+    expect(lane2?.gapMs).toBe(2_511);
+    expect(lane2?.gapNegative).toBe(true);
+  });
+
   it("returns error for invalid gap value", () => {
     const result = applyLaneGapToRace(createEmptyRace(), 2, "bad");
     expect(result.ok).toBe(false);

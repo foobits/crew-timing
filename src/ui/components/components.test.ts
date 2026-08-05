@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { escapeAttr } from "../../lib/ui-helpers";
 import { renderActionBanner, renderBanner } from "./banner";
+import { renderCard, renderSectionHeader } from "./card";
 import { renderButton } from "./button";
 import { renderCheckboxField, renderSelectField, renderTextField } from "./field";
 import { renderToggleGroup } from "./toggle-group";
@@ -99,5 +100,15 @@ describe("renderBanner", () => {
   it("renders status banners and action banners", () => {
     expect(renderBanner("Saved draft")).toContain('role="status"');
     expect(renderActionBanner("undo", "Undo last clear")).toContain('data-action="undo"');
+  });
+});
+
+describe("renderCard", () => {
+  it("renders a card shell with optional id and class", () => {
+    expect(renderCard({ content: "<p>Body</p>" })).toContain('class="card"');
+    expect(renderCard({ id: "lanes-section", className: "highlight", content: "Lanes" })).toContain(
+      'id="lanes-section"',
+    );
+    expect(renderSectionHeader("Lanes", "<button>Add</button>")).toContain("<button>Add</button>");
   });
 });

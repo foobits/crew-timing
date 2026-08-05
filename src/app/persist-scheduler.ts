@@ -27,3 +27,15 @@ export function flushPersistRace(race: RaceDraft): void {
   pendingRace = null;
   persistRace(race);
 }
+
+/** Write any debounced draft still waiting on the persist timer. */
+export function flushPendingPersist(): void {
+  if (timer !== null) {
+    window.clearTimeout(timer);
+    timer = null;
+  }
+  if (pendingRace) {
+    persistRace(pendingRace);
+    pendingRace = null;
+  }
+}

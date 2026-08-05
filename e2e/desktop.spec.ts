@@ -5,11 +5,12 @@ import {
   expectResultsVisible,
   fillLaneGap,
   fillRaceContext,
+  gotoApp,
 } from "./helpers";
 
 test.describe("desktop race flow", () => {
   test("calculates finish timestamps from reference and splits", async ({ page }) => {
-    await page.goto("/");
+    await gotoApp(page);
     await fillRaceContext(page);
 
     await fillLaneGap(page, 2, "2.511");
@@ -23,7 +24,7 @@ test.describe("desktop race flow", () => {
   });
 
   test("supports negative split via sign toggle", async ({ page }) => {
-    await page.goto("/");
+    await gotoApp(page);
     await fillRaceContext(page);
 
     await page.locator('[data-gap-sign="2"]').click();
@@ -39,7 +40,7 @@ test.describe("desktop race flow", () => {
 
 test.describe("desktop form commit", () => {
   test("commits reference elapsed on blur via change handler", async ({ page }) => {
-    await page.goto("/");
+    await gotoApp(page);
     await fillRaceContext(page);
     await fillLaneGap(page, 2, "2.511");
 

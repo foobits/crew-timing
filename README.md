@@ -35,10 +35,23 @@ npm run dev            # local dev server
 npm run build          # production build → dist/
 npm run preview        # preview production build
 npm run test           # unit tests (Vitest)
-npm run test:coverage  # unit tests with coverage gate on src/lib/
+npm run test:coverage  # unit tests with coverage gate (src/lib, src/app, src/ui)
 npm run test:e2e       # Playwright (desktop Chrome + mobile Safari)
 npm run test:all       # coverage + E2E (same as CI)
 ```
+
+**Test layout**
+
+| Area | What's covered |
+|------|----------------|
+| `src/lib/` | Parsing, race computation, form commit |
+| `src/app/` | State, persistence scheduling, form sync, app bootstrap |
+| `src/ui/` | Render helpers, partial DOM patches, components, focus/toast |
+| `e2e/` | Desktop + mobile race flows (event wiring in `bind-events.ts`) |
+
+156 unit tests; coverage thresholds enforced on application modules above (`bind-events.ts` is covered by E2E and integration tests). Debounced drafts flush on tab close via `beforeunload` / `pagehide`.
+
+Mobile Safari E2E may skip locally on macOS 26+ when Playwright WebKit cannot reach the preview server; GitHub Actions (Ubuntu) runs the full suite including mobile.
 
 ## Deploy
 

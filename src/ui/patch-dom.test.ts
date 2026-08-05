@@ -2,43 +2,24 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as raceState from "../lib/race-state";
-import { createEmptyRace, touchRace } from "../lib/race-state";
+import { touchRace } from "../lib/race-state";
 import { createInitialState } from "../app/state";
-import type { AppState } from "../app/types";
+import { sampleAppState } from "../test/fixtures";
 import {
   applyRenderScope,
   getComputedRace,
   invalidateComputedRace,
+  patchBanners,
+  patchContext,
   patchCopiedLane,
+  patchDialog,
+  patchFooter,
+  patchLaneCountControls,
   patchLaneRow,
+  patchLanes,
+  patchResults,
   renderFullApp,
 } from "./patch-dom";
-
-function sampleState(overrides: Partial<AppState> = {}): AppState {
-  const race = touchRace({
-    ...createEmptyRace(),
-    startTimestampMs: 47_281_491,
-    startDate: "2026-08-04",
-    startConfirmed: true,
-    referenceLane: 3,
-    referenceElapsedMs: 143_450,
-    lanes: createEmptyRace().lanes.map((lane) => {
-      if (lane.lane === 3) {
-        return { ...lane, gapMs: 0, gapNegative: false, status: "active" as const };
-      }
-      if (lane.lane === 2) {
-        return { ...lane, gapMs: 2_511, gapNegative: false, status: "active" as const };
-      }
-      return lane;
-    }),
-  });
-
-  return {
-    ...createInitialState(),
-    race,
-    ...overrides,
-  };
-}
 
 describe("getComputedRace", () => {
   beforeEach(() => {
@@ -46,7 +27,7 @@ describe("getComputedRace", () => {
   });
 
   it("returns an empty computed result when results are hidden", () => {
-    const state = sampleState({ showResults: false });
+    const state = sampleAppState({ showResults: false });
     const computed = getComputedRace(state);
 
     expect(computed.valid).toBe(false);
@@ -55,7 +36,7 @@ describe("getComputedRace", () => {
   });
 
   it("computes and caches results while showResults stays true", () => {
-    const state = sampleState({ showResults: true });
+    const state = sampleAppState({ showResults: true });
     const computeSpy = vi.spyOn(raceState, "computeRace");
 
     const first = getComputedRace(state);
@@ -70,7 +51,7 @@ describe("getComputedRace", () => {
   });
 
   it("recomputes after invalidation", () => {
-    const state = sampleState({ showResults: true });
+    const state = sampleAppState({ showResults: true });
     const computeSpy = vi.spyOn(raceState, "computeRace");
 
     getComputedRace(state);
@@ -103,12 +84,12 @@ describe("patchLaneRow", () => {
   it("updates only the targeted lane row", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
-    renderFullApp(root, sampleState());
+    renderFullApp(root, sampleAppState());
 
     const before = root.querySelectorAll(".lane-row").length;
     const lane2Before = root.querySelector('.lane-row[data-lane="2"]')?.outerHTML;
 
-    const nextState = sampleState();
+    const nextState = sampleAppState();
     nextState.race = touchRace({
       ...nextState.race,
       lanes: nextState.race.lanes.map((lane) =>
@@ -131,14 +112,14 @@ describe("patchLaneRow", () => {
   it("preserves focus in the edited gap input", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
-    renderFullApp(root, sampleState());
+    renderFullApp(root, sampleAppState());
 
     const input = root.querySelector<HTMLInputElement>('[data-gap-input="2"]');
     expect(input).not.toBeNull();
     input!.focus();
     input!.setSelectionRange(2, 2);
 
-    const nextState = sampleState();
+    const nextState = sampleAppState();
     nextState.race = touchRace({
       ...nextState.race,
       lanes: nextState.race.lanes.map((lane) =>
@@ -162,23 +143,84 @@ describe("applyRenderScope", () => {
 
   it("does not mutate the DOM for the none scope", () => {
     const root = document.createElement("div");
-    renderFullApp(root, sampleState());
+    renderFullApp(root, sampleAppState());
     const before = root.innerHTML;
 
-    applyRenderScope(root, sampleState(), { type: "none" });
+    applyRenderScope(root, sampleAppState(), { type: "none" });
 
     expect(root.innerHTML).toBe(before);
   });
 
   it("patches only the results section for the results scope", () => {
     const root = document.createElement("div");
-    renderFullApp(root, sampleState());
+    renderFullApp(root, sampleAppState());
     const lanesBefore = root.querySelector("#lanes-section")?.outerHTML;
 
-    const nextState = sampleState({ showResults: true });
+    const nextState = sampleAppState({ showResults: true });
     applyRenderScope(root, nextState, { type: "results" });
 
     expect(root.querySelector("#lanes-section")?.outerHTML).toBe(lanesBefore);
     expect(root.querySelector("#results-card")?.textContent).toContain("1st");
+  });
+
+  it("patches individual scopes without rerendering the whole app", () => {
+    const root = document.createElement("div");
+    renderFullApp(root, sampleAppState());
+    const fullBefore = root.querySelector("header")?.outerHTML;
+
+    patchBanners(root, sampleAppState({ restoredBanner: true }), false);
+    expect(root.querySelector("#app-banners")?.textContent).toContain("Restored race draft");
+
+    patchContext(root, sampleAppState({ contextCollapsed: true }), false);
+    expect(root.querySelector("#context-card")?.classList.contains("collapsed")).toBe(true);
+
+    patchLanes(root, sampleAppState());
+    expect(root.querySelectorAll(".lane-row").length).toBeGreaterThan(0);
+
+    patchDialog(root, sampleAppState({ confirmAction: "clearJudge" }));
+    expect(root.querySelector("#confirm-host")?.textContent).toContain("Clear judge data");
+
+    patchFooter(sampleAppState());
+    expect(document.getElementById("footer-actions")).not.toBeNull();
+
+    patchCopiedLane(root, 2);
+    expect(root.querySelector('[data-result-lane="2"]')).toBeNull();
+
+    const resultsState = sampleAppState({ showResults: true });
+    patchResults(root, resultsState, getComputedRace(resultsState));
+    expect(root.querySelector("#results-card")?.textContent).toContain("Results");
+
+    patchLaneCountControls(root, sampleAppState());
+    expect(root.querySelector(".lane-count")?.textContent).toBe("8");
+
+    expect(root.querySelector("header")?.outerHTML).toBe(fullBefore);
+  });
+
+  it("handles copied-lane, banners, dialog, footer, context, and lanes scopes", () => {
+    const root = document.createElement("div");
+    renderFullApp(root, sampleAppState({ showResults: true }));
+
+    applyRenderScope(root, sampleAppState({ copiedLanes: new Set([2]) }), {
+      type: "copied-lane",
+      lane: 2,
+    });
+    expect(root.querySelector('[data-result-lane="2"]')?.classList.contains("copied")).toBe(true);
+
+    applyRenderScope(root, sampleAppState({ restoredBanner: true }), { type: "banners" });
+    expect(root.querySelector("#app-banners")?.textContent).toContain("Restored race draft");
+
+    applyRenderScope(root, sampleAppState({ confirmAction: "nextRace" }), { type: "dialog" });
+    expect(root.querySelector("#confirm-host")?.textContent).toContain(
+      "Clear this race and start the next one?",
+    );
+
+    applyRenderScope(root, createInitialState(), { type: "footer" });
+    expect(document.getElementById("footer-actions")).toBeNull();
+
+    applyRenderScope(root, sampleAppState({ contextCollapsed: true }), { type: "context" });
+    expect(root.querySelector("#context-card")?.classList.contains("collapsed")).toBe(true);
+
+    applyRenderScope(root, sampleAppState(), { type: "lanes" });
+    expect(root.querySelectorAll(".lane-row").length).toBe(8);
   });
 });

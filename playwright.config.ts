@@ -20,7 +20,7 @@ export default defineConfig({
     {
       name: "mobile-safari",
       testMatch: /mobile\.spec\.ts/,
-      use: { ...devices["iPhone 13"] },
+      use: { ...devices["iPhone 13"], serviceWorkers: "block" },
     },
   ],
   webServer: {
