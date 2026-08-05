@@ -16,6 +16,7 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   --radius: 10px;
   --touch: 48px;
+  --control-height: 44px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
   line-height: 1.4;
@@ -137,6 +138,8 @@ h1 {
   user-select: none;
   font-weight: 600;
   padding: 14px;
+  line-height: 1.5;
+  font-size: 0.95rem;
 }
 
 .context-summary:focus-visible {
@@ -157,12 +160,18 @@ h1 {
 .field input,
 .field select {
   width: 100%;
-  min-height: var(--touch);
+  min-height: var(--control-height);
+  height: var(--control-height);
   font-size: 16px;
-  padding: 10px 12px;
+  padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
+}
+
+.field input[type="text"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 15px;
 }
 
 .field input:focus-visible,
@@ -184,12 +193,57 @@ button:focus-visible {
 
 .lane-row {
   display: grid;
-  grid-template-columns: 52px 1fr auto auto;
+  grid-template-columns: 40px minmax(0, 1fr) 120px 52px;
   gap: 8px;
   align-items: center;
   padding: 8px;
   border-radius: 8px;
   border: 1px solid transparent;
+}
+
+.lane-gap-input,
+.lane-row .lane-status-toggle,
+.lane-row .btn-small {
+  height: var(--control-height);
+  min-height: var(--control-height);
+  max-height: var(--control-height);
+  box-sizing: border-box;
+}
+
+.lane-gap-input {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.lane-gap-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lane-gap-input[readonly] {
+  background: var(--ref-bg);
+  color: var(--muted);
+}
+
+.lane-row .lane-status-toggle {
+  align-self: stretch;
+}
+
+.lane-row .btn-small {
+  min-width: 0;
+  width: 100%;
+  padding: 0 6px;
+  font-size: 0.8rem;
+  line-height: 1;
 }
 
 .lane-row.reference {
@@ -201,15 +255,64 @@ button:focus-visible {
   opacity: 0.65;
 }
 
+.lane-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  align-self: center;
+}
+
 .lane-num {
   font-weight: 700;
-  text-align: center;
 }
 
 .lane-ref-badge {
   font-size: 0.75rem;
   color: var(--accent);
   font-weight: 700;
+  line-height: 1.2;
+}
+
+.lane-status-toggle {
+  display: flex;
+  min-width: 0;
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.lane-status-btn {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0 6px;
+  cursor: pointer;
+  line-height: 1.1;
+}
+
+.lane-status-btn.selected {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.lane-status-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.lane-status-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.85;
 }
 
 .btn {
@@ -221,6 +324,14 @@ button:focus-visible {
   font-weight: 600;
   cursor: pointer;
   padding: 10px 16px;
+}
+
+.btn.btn-small {
+  min-height: var(--control-height);
+  min-width: var(--control-height);
+  padding: 0 10px;
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .btn-primary {
@@ -238,12 +349,8 @@ button:focus-visible {
 }
 
 .btn-small {
-  min-height: 44px;
-  min-width: 44px;
-  padding: 8px 10px;
   background: #edf2f7;
   color: var(--text);
-  font-size: 0.85rem;
 }
 
 .btn-copy {
@@ -383,6 +490,15 @@ button:focus-visible {
 
 @media (min-width: 480px) {
   .lane-row {
-    grid-template-columns: 56px 1fr 120px 56px;
+    grid-template-columns: 44px minmax(0, 1fr) 128px 56px;
+  }
+
+  .lane-row .btn-small {
+    font-size: 0.85rem;
+  }
+
+  .lane-status-btn {
+    font-size: 0.85rem;
+    padding: 0 8px;
   }
 }
