@@ -5,7 +5,6 @@ import {
   createEmptyRace,
   formatCopyAll,
   formatElapsed,
-  formatGap,
   formatTimestamp,
   hasRaceData,
   isStaleDraft,
@@ -28,7 +27,6 @@ import {
   formatTimestampWhileTyping,
   isParseFailure,
   parseElapsed,
-  parseGap,
   parseTimestamp,
   todayDateString,
 } from "./lib/time";
@@ -52,7 +50,7 @@ interface AppState {
 const PLACE_LABELS = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
 const DEFAULT_TIMESTAMP = formatTimestamp(0);
 const DEFAULT_ELAPSED = formatElapsed(0);
-const DEFAULT_GAP = formatGap({ ms: 0, negative: false });
+const DEFAULT_GAP = "0.000";
 
 let state: AppState = {
   race: createEmptyRace(),
@@ -271,7 +269,7 @@ function render(): void {
 
     <section class="card">
       <div class="section-header">
-        <h2>Lanes (splits) <span class="label-format">+MM:SS.SSS</span></h2>
+        <h2>Lanes (splits) <span class="label-format">± sec.sss</span></h2>
         <div class="lane-count-controls">
           <button type="button" class="btn btn-small" data-action="remove-lane" aria-label="Remove lane" tabindex="-1" ${state.race.lanes.length <= MIN_LANE_COUNT ? "disabled" : ""}>−</button>
           <span class="lane-count">${state.race.lanes.length}</span>
@@ -380,13 +378,14 @@ function renderLaneRow(lane: LaneDraft): string {
   const gapValue = isRef
     ? refElapsedValue
     : lane.gapMs !== null
-      ? `${lane.gapNegative ? "-" : ""}${formatGapInput(lane)}`
+      ? formatGapInput(lane)
       : "";
   const gapPlaceholder = isRef ? DEFAULT_ELAPSED : DEFAULT_GAP;
   const gapAriaLabel = isRef
     ? "Reference lane time on water"
     : `Lane ${lane.lane} gap from reference`;
   const skipGapTab = isRef || lane.status === "empty";
+  const showGapSign = !isRef && lane.status !== "empty";
 
   return `
     <div class="lane-row ${isRef ? "reference" : ""} ${lane.status === "empty" ? "empty-lane" : ""}" data-lane="${lane.lane}">
@@ -394,17 +393,31 @@ function renderLaneRow(lane: LaneDraft): string {
         <div class="lane-num">${lane.lane}</div>
         ${isRef ? `<div class="lane-ref-badge">REF</div>` : ""}
       </div>
-      <input
-        type="text"
-        class="lane-gap-input${isRef ? " lane-gap-input--locked" : ""}"
-        inputmode="decimal"
-        aria-label="${gapAriaLabel}"
-        data-gap-input="${lane.lane}"
-        value="${escapeAttr(gapValue)}"
-        placeholder="${gapPlaceholder}"
-        ${skipGapTab ? 'tabindex="-1"' : ""}
-        ${isRef ? 'readonly aria-disabled="true"' : lane.status === "empty" ? "readonly" : ""}
-      />
+      <div class="gap-input-wrap">
+        ${
+          showGapSign
+            ? `<button
+                type="button"
+                class="gap-sign-btn${lane.gapNegative ? " gap-sign-btn--negative" : ""}"
+                data-gap-sign="${lane.lane}"
+                aria-label="Toggle gap sign for lane ${lane.lane}"
+                aria-pressed="${lane.gapNegative}"
+                tabindex="-1"
+              >${lane.gapNegative ? "−" : "+"}</button>`
+            : ""
+        }
+        <input
+          type="text"
+          class="lane-gap-input${isRef ? " lane-gap-input--locked" : ""}"
+          inputmode="decimal"
+          aria-label="${gapAriaLabel}"
+          data-gap-input="${lane.lane}"
+          value="${escapeAttr(gapValue)}"
+          placeholder="${gapPlaceholder}"
+          ${skipGapTab ? 'tabindex="-1"' : ""}
+          ${isRef ? 'readonly aria-disabled="true"' : lane.status === "empty" ? "readonly" : ""}
+        />
+      </div>
       ${renderLaneStatusToggle(lane, isRef)}
       <button type="button" class="btn btn-small" data-clear-lane="${lane.lane}" tabindex="-1" ${isRef ? "disabled" : ""} aria-label="Clear lane ${lane.lane}">Clear</button>
     </div>
@@ -633,6 +646,18 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
     }
   });
 
+  app.querySelectorAll("[data-gap-sign]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      const laneNum = Number((e.target as HTMLButtonElement).dataset.gapSign);
+      updateRace((race) => ({
+        ...race,
+        lanes: race.lanes.map((lane) =>
+          lane.lane === laneNum ? { ...lane, gapNegative: !lane.gapNegative } : lane,
+        ),
+      }));
+    });
+  });
+
   app.querySelectorAll("[data-gap-input]").forEach((el) => {
     el.addEventListener("input", (e) => {
       const input = e.target as HTMLInputElement;
@@ -648,18 +673,15 @@ function bindEvents(computed: ReturnType<typeof computeRace>): void {
         lanes: race.lanes.map((lane) => {
           if (lane.lane !== laneNum) return lane;
           if (!value) return { ...lane, gapMs: null, gapNegative: false };
-          const parsed = parseGap(value);
+          const parsed = parseElapsed(value);
           if (isParseFailure(parsed)) {
             announce(parsed.error);
             return lane;
           }
-          if (!parsed.signed) {
-            return lane;
-          }
           return {
             ...lane,
-            gapMs: parsed.signed.ms,
-            gapNegative: parsed.signed.negative,
+            gapMs: parsed.value,
+            gapNegative: lane.gapNegative,
             status: "active",
           };
         }),
