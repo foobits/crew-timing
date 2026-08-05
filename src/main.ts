@@ -340,9 +340,10 @@ function renderLaneStatusToggle(lane: LaneDraft, isRef: boolean): string {
   const activeSelected = lane.status === "active" ? " selected" : "";
   const emptySelected = lane.status === "empty" ? " selected" : "";
   const disabled = isRef ? " disabled" : "";
+  const toggleClass = isRef ? " lane-status-toggle--locked" : "";
 
   return `
-    <div class="lane-status-toggle" role="group" aria-label="Lane ${lane.lane} status">
+    <div class="lane-status-toggle${toggleClass}" role="group" aria-label="Lane ${lane.lane} status"${isRef ? ' aria-disabled="true"' : ""}>
       <button
         type="button"
         class="lane-status-btn${activeSelected}"
