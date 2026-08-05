@@ -79,6 +79,21 @@ h1 {
   margin: 0 0 12px;
 }
 
+.label-format {
+  color: #718096;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.field label .label-format {
+  display: block;
+  margin-top: 2px;
+}
+
+.card h2 .label-format {
+  font-weight: 400;
+}
+
 .context-summary {
   cursor: pointer;
   user-select: none;

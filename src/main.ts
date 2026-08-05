@@ -153,7 +153,7 @@ function render(): void {
     </section>
 
     <section class="card">
-      <h2>Lane gaps from reference</h2>
+      <h2>Lanes <span class="label-format">+MM:SS.SSS</span></h2>
       <div class="lane-grid">${state.race.lanes.map(renderLaneRow).join("")}</div>
     </section>
 
@@ -209,7 +209,10 @@ function renderContextFields(stale: boolean): string {
       <input id="event-label" type="text" value="${escapeAttr(state.race.eventLabel)}" placeholder="Mens 1V Heat 2" autocomplete="off" />
     </div>
     <div class="field">
-      <label for="start-ts">Race start timestamp (from CrewTimer)</label>
+      <label for="start-ts">
+        Race start timestamp (from CrewTimer)
+        <span class="label-format">HH:MM:SS.SSS</span>
+      </label>
       <input id="start-ts" type="text" inputmode="decimal" value="${escapeAttr(startValue)}" placeholder="13:08:01.491" autocomplete="off" />
     </div>
     ${
@@ -220,7 +223,10 @@ function renderContextFields(stale: boolean): string {
         : ""
     }
     <div class="field">
-      <label for="ref-elapsed">Reference elapsed</label>
+      <label for="ref-elapsed">
+        Reference elapsed
+        <span class="label-format">MM:SS.SSS</span>
+      </label>
       <input id="ref-elapsed" type="text" inputmode="decimal" value="${escapeAttr(refValue)}" placeholder="7:23.45" autocomplete="off" />
     </div>
     <div class="field">
