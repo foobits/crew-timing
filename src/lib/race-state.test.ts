@@ -15,7 +15,9 @@ import {
   nextRace,
   persistRace,
   removeLane,
+  removeLaneClearingJudgeData,
   setReferenceLane,
+  wouldRemoveReferenceLaneWithJudgeData,
   type RaceDraft,
 } from "./race-state";
 
@@ -148,7 +150,7 @@ describe("lane count", () => {
     expect(race.lanes.length).toBe(MIN_LANE_COUNT);
   });
 
-  it("moves reference to lane 1 when removing the reference lane", () => {
+  it("moves reference to lane 1 when removing the reference lane without judge data", () => {
     let race = createEmptyRace();
     while (race.lanes.length < 10) {
       race = addLane(race);
@@ -157,6 +159,33 @@ describe("lane count", () => {
     race = removeLane(race);
     expect(race.lanes.length).toBe(9);
     expect(race.referenceLane).toBe(1);
+  });
+
+  it("detects when removing the reference lane would invalidate judge data", () => {
+    let race = createEmptyRace();
+    while (race.lanes.length < 10) {
+      race = addLane(race);
+    }
+    race = {
+      ...race,
+      referenceLane: 10,
+      referenceElapsedMs: 143_450,
+      lanes: race.lanes.map((lane) =>
+        lane.lane === 10
+          ? { ...lane, gapMs: 0, gapNegative: false, status: "active" as const }
+          : lane.lane === 2
+            ? { ...lane, gapMs: 2_511, gapNegative: false, status: "active" as const }
+            : lane,
+      ),
+    };
+
+    expect(wouldRemoveReferenceLaneWithJudgeData(race)).toBe(true);
+
+    const cleared = removeLaneClearingJudgeData(race);
+    expect(cleared.lanes.length).toBe(9);
+    expect(cleared.referenceLane).toBe(1);
+    expect(cleared.referenceElapsedMs).toBeNull();
+    expect(cleared.lanes.find((lane) => lane.lane === 2)?.gapMs).toBeNull();
   });
 });
 
@@ -206,6 +235,21 @@ describe("persistence", () => {
     expect(loadPersistedRace()).toBe(null);
   });
 
+  it("persists a versioned envelope", () => {
+    persistRace(sampleRace());
+    const stored = JSON.parse(localStorage.getItem("crew-timing-race-draft")!);
+    expect(stored.version).toBe(1);
+    expect(stored.draft.eventLabel).toBe("Mens 1V Heat 2");
+  });
+
+  it("loads legacy unversioned drafts from localStorage", () => {
+    const race = sampleRace();
+    localStorage.setItem("crew-timing-race-draft", JSON.stringify(race));
+    const loaded = loadPersistedRace();
+    expect(loaded?.eventLabel).toBe(race.eventLabel);
+    expect(loaded?.startTimestampMs).toBe(race.startTimestampMs);
+  });
+
   it("rejects invalid persisted drafts", () => {
     localStorage.setItem("crew-timing-race-draft", "{");
     expect(loadPersistedRace()).toBe(null);
@@ -215,6 +259,14 @@ describe("persistence", () => {
     localStorage.setItem(
       "crew-timing-race-draft",
       JSON.stringify({ ...sampleRace(), lanes: [] }),
+    );
+    expect(loadPersistedRace()).toBe(null);
+  });
+
+  it("rejects drafts with invalid field types", () => {
+    localStorage.setItem(
+      "crew-timing-race-draft",
+      JSON.stringify({ ...sampleRace(), referenceElapsedMs: "02:23.450" }),
     );
     expect(loadPersistedRace()).toBe(null);
   });

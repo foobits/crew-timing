@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as clipboard from "../app/clipboard";
 import { touchRace } from "../lib/race-state";
-import { sampleAppState } from "../test/fixtures";
+import { sampleAppState, sampleRaceWithReferenceLane10 } from "../test/fixtures";
 import { mountBoundApp } from "../test/bind-app";
 import { applyRenderScope } from "./patch-dom";
 import { renderFooter } from "./render-dialog";
@@ -143,8 +143,47 @@ describe("bindEventsOnce", () => {
     app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
 
     expect(app.getState().showResults).toBe(true);
+    expect(app.getState().calculatedResults?.valid).toBe(true);
     expect(app.renderNow).toHaveBeenCalledWith({ type: "results" });
     expect(app.root.querySelector(".result-card")).not.toBeNull();
+  });
+
+  it("rejects calculate when live form values are invalid", () => {
+    const app = mountBoundApp(sampleAppState());
+    fillTimeInput(app.root, "#start-ts", "10:05:03.111");
+    fillTimeInput(app.root, "#ref-elapsed", "01:23.450");
+
+    const ref = app.root.querySelector<HTMLInputElement>("#ref-elapsed")!;
+    ref.value = "not-valid";
+    ref.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+
+    expect(app.getState().showResults).toBe(false);
+    expect(app.getState().calculatedResults).toBeNull();
+    expect(document.getElementById("toast")?.textContent).toBeTruthy();
+    expect(app.root.querySelector(".result-card")).toBeNull();
+  });
+
+  it("keeps copy-all aligned with displayed per-lane copy values after draft edits", async () => {
+    const app = mountBoundApp(sampleAppState());
+    fillTimeInput(app.root, "#start-ts", "10:05:03.111");
+    fillTimeInput(app.root, "#ref-elapsed", "01:23.450");
+    app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+
+    const lane2Before = app.root.querySelector<HTMLButtonElement>('[data-copy-lane="2"]')!;
+    const displayedCopyValue = lane2Before.dataset.copyValue ?? "";
+
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "9.999";
+    lane2.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    app.root.querySelector<HTMLElement>('[data-action="copy-all"]')?.click();
+    await vi.waitFor(() => expect(clipboard.copyText).toHaveBeenCalled());
+
+    const copiedAll = vi.mocked(clipboard.copyText).mock.calls.at(-1)?.[0] ?? "";
+    expect(copiedAll).toContain(displayedCopyValue);
+    expect(copiedAll).not.toContain("09:999");
   });
 
   it("collapses and expands race context", () => {
@@ -324,6 +363,43 @@ describe("bindEventsOnce", () => {
 
     expect(app.getState().confirmAction).toBe("changeRef");
     expect(app.getState().pendingReferenceLane).toBe(4);
+  });
+
+  it("prompts before removing the reference lane when judge data exists", () => {
+    const app = mountBoundApp(sampleAppState({ race: sampleRaceWithReferenceLane10() }));
+
+    app.root.querySelector<HTMLElement>('[data-action="remove-lane"]')?.click();
+    expect(app.getState().confirmAction).toBe("removeLane");
+  });
+
+  it("clears judge data when confirming reference-lane removal", () => {
+    const app = mountBoundApp(sampleAppState({ race: sampleRaceWithReferenceLane10() }));
+
+    app.root.querySelector<HTMLElement>('[data-action="remove-lane"]')?.click();
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+
+    expect(app.getState().confirmAction).toBeNull();
+    expect(app.getState().race.lanes).toHaveLength(9);
+    expect(app.getState().race.referenceLane).toBe(1);
+    expect(app.getState().race.referenceElapsedMs).toBeNull();
+    expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs).toBeNull();
+  });
+
+  it("expires the undo banner after 30 seconds", () => {
+    vi.useFakeTimers();
+    renderFooter(true);
+    const app = mountBoundApp(sampleAppState());
+
+    document.querySelector<HTMLElement>('[data-action="next-race"]')?.click();
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+    expect(app.getState().undoSnapshot).not.toBeNull();
+    expect(document.querySelector('[data-action="undo"]')).not.toBeNull();
+
+    vi.advanceTimersByTime(30_000);
+    expect(app.getState().undoSnapshot).toBeNull();
+    expect(document.querySelector('[data-action="undo"]')).toBeNull();
+
+    vi.useRealTimers();
   });
 
   it("restores the undo snapshot from the banner action", () => {

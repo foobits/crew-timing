@@ -35,7 +35,15 @@ describe("getComputedRace", () => {
     expect(computed.errors).toEqual([]);
   });
 
-  it("computes and caches results while showResults stays true", () => {
+  it("returns an empty computed result when no calculation snapshot exists", () => {
+    const state = sampleAppState({ showResults: true, calculatedResults: null });
+    const computed = getComputedRace(state);
+
+    expect(computed.valid).toBe(false);
+    expect(computed.results).toEqual([]);
+  });
+
+  it("returns the stored calculation snapshot without recomputing", () => {
     const state = sampleAppState({ showResults: true });
     const computeSpy = vi.spyOn(raceState, "computeRace");
 
@@ -44,24 +52,25 @@ describe("getComputedRace", () => {
 
     expect(first.valid).toBe(true);
     expect(second).toBe(first);
-    expect(computeSpy).toHaveBeenCalledTimes(1);
+    expect(computeSpy).not.toHaveBeenCalled();
 
     computeSpy.mockRestore();
-    invalidateComputedRace();
   });
 
-  it("recomputes after invalidation", () => {
+  it("keeps the snapshot when the draft changes after calculate", () => {
     const state = sampleAppState({ showResults: true });
-    const computeSpy = vi.spyOn(raceState, "computeRace");
+    const snapshot = getComputedRace(state);
 
-    getComputedRace(state);
-    invalidateComputedRace();
-    getComputedRace(state);
+    const edited = sampleAppState({
+      showResults: true,
+      calculatedResults: snapshot,
+      race: touchRace({
+        ...state.race,
+        referenceElapsedMs: 999_999,
+      }),
+    });
 
-    expect(computeSpy).toHaveBeenCalledTimes(2);
-
-    computeSpy.mockRestore();
-    invalidateComputedRace();
+    expect(getComputedRace(edited)).toBe(snapshot);
   });
 });
 

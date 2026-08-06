@@ -1,4 +1,4 @@
-import { computeRace, hasRaceData, isStaleDraft, MIN_LANE_COUNT, type ComputedRace } from "../lib/race-state";
+import { hasRaceData, isStaleDraft, MIN_LANE_COUNT, type ComputedRace } from "../lib/race-state";
 import { sortResults } from "../lib/ui-helpers";
 import type { AppState } from "../app/types";
 import type { RenderScope } from "../app/render-scope";
@@ -17,25 +17,15 @@ import {
 
 const EMPTY_COMPUTED: ComputedRace = { valid: false, results: [], errors: [] };
 
-let computedCache: { stamp: string; computed: ComputedRace } | null = null;
-
 export function getComputedRace(state: AppState): ComputedRace {
-  if (!state.showResults) {
+  if (!state.showResults || !state.calculatedResults) {
     return EMPTY_COMPUTED;
   }
-
-  const stamp = state.race.updatedAt;
-  if (computedCache?.stamp === stamp) {
-    return computedCache.computed;
-  }
-
-  const computed = computeRace(state.race);
-  computedCache = { stamp, computed };
-  return computed;
+  return state.calculatedResults;
 }
 
 export function invalidateComputedRace(): void {
-  computedCache = null;
+  // Kept for callers that invalidate render caches when draft changes.
 }
 
 function getDisplayedResults(state: AppState, computed: ComputedRace) {

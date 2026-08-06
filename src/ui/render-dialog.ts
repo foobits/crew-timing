@@ -6,6 +6,7 @@ const CONFIRM_MESSAGES: Record<ConfirmAction, string> = {
   nextRace: "Clear this race and start the next one?",
   clearJudge: "Clear judge data and keep the start timestamp?",
   changeRef: "Changing reference lane will reset lane gaps. Continue?",
+  removeLane: "Removing the reference lane will clear judge data. Continue?",
 };
 
 export function renderConfirmDialog(state: AppState): string {

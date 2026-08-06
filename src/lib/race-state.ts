@@ -8,6 +8,7 @@ import {
   type Milliseconds,
   type SignedMilliseconds,
 } from "./time";
+import { parsePersistedRace, serializePersistedRace } from "./persist-race";
 
 export type LaneStatus = "active" | "empty";
 
@@ -114,6 +115,32 @@ export function removeLane(race: RaceDraft): RaceDraft {
       lanes: race.lanes.slice(0, -1),
     }),
   );
+}
+
+export function wouldRemoveReferenceLaneWithJudgeData(race: RaceDraft): boolean {
+  if (race.lanes.length <= MIN_LANE_COUNT) {
+    return false;
+  }
+  const removedLane = race.lanes.length;
+  if (race.referenceLane !== removedLane) {
+    return false;
+  }
+  return (
+    race.referenceElapsedMs !== null ||
+    race.lanes.some((lane) => lane.lane !== race.referenceLane && lane.gapMs !== null)
+  );
+}
+
+export function removeLaneClearingJudgeData(race: RaceDraft): RaceDraft {
+  if (race.lanes.length <= MIN_LANE_COUNT) {
+    return race;
+  }
+  const withoutLastLane = touchRace({
+    ...race,
+    referenceLane: 1,
+    lanes: race.lanes.slice(0, -1),
+  });
+  return clearJudgeData(withoutLastLane);
 }
 
 export function touchRace(race: RaceDraft): RaceDraft {
@@ -340,7 +367,7 @@ export function clearJudgeData(race: RaceDraft): RaceDraft {
 
 export function persistRace(race: RaceDraft): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(race));
+    localStorage.setItem(STORAGE_KEY, serializePersistedRace(race));
   } catch {
     // Storage unavailable.
   }
@@ -350,14 +377,9 @@ export function loadPersistedRace(): RaceDraft | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as RaceDraft;
-    if (
-      !parsed.lanes ||
-      parsed.lanes.length < MIN_LANE_COUNT
-    ) {
-      return null;
-    }
-    return enforceInvariants(parsed);
+    const draft = parsePersistedRace(JSON.parse(raw));
+    if (!draft) return null;
+    return enforceInvariants(draft);
   } catch {
     return null;
   }

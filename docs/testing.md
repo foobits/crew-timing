@@ -4,7 +4,7 @@
 
 | Layer | Tool | Location | Count (approx.) |
 |-------|------|----------|-----------------|
-| Unit | Vitest + happy-dom | `src/**/*.test.ts` | 197 |
+| Unit | Vitest + happy-dom | `src/**/*.test.ts` | 220 |
 | E2E | Playwright | `e2e/*.spec.ts` | 12 |
 | Fixture contract | Playwright | `e2e/fixture.spec.ts` | 1 scenario |
 
@@ -36,9 +36,9 @@ Configured in `vite.config.ts`:
 
 ### Key test patterns
 
-**Pure domain** — `lib/race-state.test.ts`, `lib/time.test.ts`, `lib/form-commit.test.ts`:
+**Pure domain** — `lib/race-state.test.ts`, `lib/time.test.ts`, `lib/form-commit.test.ts`, `lib/persist-race.test.ts`:
 
-- No DOM; fast; exhaustive edge cases for parsing and computation.
+- No DOM; fast; exhaustive edge cases for parsing, computation, and persistence validation.
 
 **App layer** — `app/form-sync.test.ts`, `app/persist-scheduler.test.ts`, `app/create-app.test.ts`:
 
@@ -49,6 +49,7 @@ Configured in `vite.config.ts`:
 - Mounts real event bindings against `#app`.
 - Mocks `clipboard.copyText` where needed.
 - Asserts state + `renderNow` / `scheduleRender` calls.
+- Covers Calculate validation abort, calculation snapshot consistency, reference-lane removal confirm, undo expiry.
 
 **Patch granularity** — `ui/patch-dom.test.ts`:
 

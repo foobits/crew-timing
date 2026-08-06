@@ -48,7 +48,7 @@ See the root README [race-day workflow](../README.md#race-day-workflow) and [fie
 | Mobile-first touch UI | Primary device at the finish line is a phone |
 | Works offline (PWA) | Venue Wi‑Fi is unreliable |
 | Debounced persistence | Avoid hammering `localStorage` while typing |
-| Explicit **Calculate** | Operators review inputs before results; avoids surprise recalc |
+| Explicit **Calculate** | Operators review inputs before results; invalid input aborts; results are a snapshot until recalculated |
 | Partial DOM updates | Keep typing smooth on mid-tier phones |
 | 24-hour timestamps, ms precision | Match CrewTimer expectations |
 

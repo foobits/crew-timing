@@ -5,17 +5,12 @@ import { createApp } from "./create-app";
 import { loadPersistedRace, touchRace, createEmptyRace } from "../lib/race-state";
 import { flushPendingPersist } from "./persist-scheduler";
 
-function fillTimeInput(root: ParentNode, selector: string, digits: string): void {
+function fillTimeInput(root: ParentNode, selector: string, value: string): void {
   const input = root.querySelector<HTMLInputElement>(selector);
   if (!input) throw new Error(`Missing input: ${selector}`);
-  input.focus();
-  input.value = "";
-  for (const digit of digits) {
-    input.dispatchEvent(new InputEvent("input", { data: digit, bubbles: true, inputType: "insertText" }));
-    input.value = `${input.value}${digit}`;
-  }
+  input.value = value;
+  input.dispatchEvent(new InputEvent("input", { bubbles: true }));
   input.dispatchEvent(new Event("change", { bubbles: true }));
-  input.blur();
 }
 
 describe("createApp", () => {
@@ -78,8 +73,8 @@ describe("createApp", () => {
     const toast = document.getElementById("toast")!;
     createApp(root, toast).init();
 
-    fillTimeInput(root, "#start-ts", "100503111");
-    fillTimeInput(root, "#ref-elapsed", "0123450");
+    fillTimeInput(root, "#start-ts", "10:05:03.111");
+    fillTimeInput(root, "#ref-elapsed", "01:23.450");
 
     const lane2 = root.querySelector<HTMLInputElement>('[data-gap-input="2"]');
     lane2!.focus();
@@ -105,8 +100,8 @@ describe("createApp", () => {
     const toast = document.getElementById("toast")!;
     createApp(root, toast).init();
 
-    fillTimeInput(root, "#start-ts", "100503111");
-    fillTimeInput(root, "#ref-elapsed", "0123450");
+    fillTimeInput(root, "#start-ts", "10:05:03.111");
+    fillTimeInput(root, "#ref-elapsed", "01:23.450");
 
     root.querySelector<HTMLElement>('[data-action="add-lane"]')?.click();
     expect(rafCallbacks.length).toBe(1);

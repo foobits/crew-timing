@@ -107,7 +107,7 @@ export function updateRaceDraft(
   options: { persist?: "immediate" | "debounced" } = {},
 ): AppState {
   const race = updater(state.race);
-  const next = { ...state, race, showResults: false };
+  const next = { ...state, race, showResults: false, calculatedResults: null };
   if (hasRaceData(next.race)) {
     if (options.persist === "immediate") {
       flushPersistRace(next.race);

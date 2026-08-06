@@ -5,6 +5,7 @@
 | Layer | Choice |
 |-------|--------|
 | Language | **TypeScript** (~5.9), `"module": ESNext`, strict typing |
+| Runtime | **Node.js 22+** (CI and `package.json` `engines`) |
 | Build | **Vite** 7 |
 | UI | **Vanilla DOM** — no React/Vue/Svelte |
 | Unit tests | **Vitest** 4 + **happy-dom** |

@@ -145,11 +145,16 @@ describe("updateRaceDraft", () => {
     vi.useRealTimers();
   });
 
-  it("clears showResults and debounces persistence by default", async () => {
-    const state = { ...createInitialState(), showResults: true };
+  it("clears showResults, calculatedResults, and debounces persistence by default", async () => {
+    const state = {
+      ...createInitialState(),
+      showResults: true,
+      calculatedResults: { valid: true, results: [], errors: [] },
+    };
     const next = updateRaceDraft(state, (race) => touchRace({ ...race, eventLabel: "Heat 2" }));
 
     expect(next.showResults).toBe(false);
+    expect(next.calculatedResults).toBeNull();
     expect(next.race.eventLabel).toBe("Heat 2");
     expect(loadPersistedRace()).toBeNull();
 

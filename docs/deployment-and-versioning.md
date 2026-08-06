@@ -21,7 +21,8 @@ File: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
 
 ### Build job
 
-1. `npm ci`
+1. Node.js 22 (`actions/setup-node`)
+2. `npm ci`
 2. Install Playwright browsers (Chromium + WebKit)
 3. `npm run test:coverage`
 4. `npm run test:e2e`

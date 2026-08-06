@@ -25,7 +25,8 @@ crew-timing/
 | File | Responsibility |
 |------|----------------|
 | `time.ts` | Parse/format timestamps, elapsed, gaps; typing formatters |
-| `race-state.ts` | `RaceDraft`, `computeRace`, lane CRUD, persistence helpers |
+| `race-state.ts` | `RaceDraft`, `computeRace`, lane CRUD, persistence entry points |
+| `persist-race.ts` | Versioned localStorage format, validation, legacy migration |
 | `form-commit.ts` | Apply raw field strings → `RaceDraft` (used by form-sync) |
 | `ui-helpers.ts` | `escapeHtml`, `sortResults`, gap display helpers |
 
@@ -36,7 +37,7 @@ crew-timing/
 | File | Responsibility |
 |------|----------------|
 | `create-app.ts` | State container, render scheduling, wires bind-events |
-| `types.ts` | `AppState`, `ConfirmAction`, `ResultsSort` |
+| `types.ts` | `AppState`, `ConfirmAction`, `ResultsSort`, `calculatedResults` |
 | `state.ts` | Initial state, load persisted draft, undo snapshot |
 | `form-sync.ts` | `applyStartTimestamp`, `applyLaneGap`, `commitAllFormFields` |
 | `persist-scheduler.ts` | Debounced / immediate `persistRace` |
@@ -54,7 +55,7 @@ crew-timing/
 | `render-results.ts` | Result cards, sort toggle, copy buttons |
 | `render-dialog.ts` | Confirm dialogs, footer actions, build meta |
 | `render-app.ts` | Legacy/alternate full render (superseded by patch-dom full path) |
-| `patch-dom.ts` | `applyRenderScope`, partial patches, compute cache |
+| `patch-dom.ts` | `applyRenderScope`, partial patches, `getComputedRace` (snapshot) |
 | `bind-events.ts` | All user interaction handlers |
 | `focus.ts` | Preserve/restore focus across DOM replacements |
 | `toast.ts` | Ephemeral status messages |
@@ -88,11 +89,12 @@ Example consumers: `render-lanes.ts`, `render-results.ts`, `render-dialog.ts`.
 ### Add a new form field
 
 1. Extend `RaceDraft` if persisted (`lib/race-state.ts`).
-2. Add apply function in `lib/form-commit.ts`.
-3. Wire `form-sync.ts` + input handler in `bind-events.ts`.
-4. Render in appropriate `render-*.ts`.
-5. Include in `commitAllFormFields` if needed on Calculate.
-6. Unit tests in `form-commit.test.ts`, `bind-events.test.ts`; E2E if mobile commit matters.
+2. Bump `PERSISTENCE_VERSION` and add migration in `lib/persist-race.ts` if the stored shape changes.
+3. Add apply function in `lib/form-commit.ts`.
+4. Wire `form-sync.ts` + input handler in `bind-events.ts`.
+5. Render in appropriate `render-*.ts`.
+6. Include in `commitAllFormFields` if needed on Calculate.
+7. Unit tests in `form-commit.test.ts`, `persist-race.test.ts`, `bind-events.test.ts`; E2E if mobile commit matters.
 
 ### Add a new button action
 

@@ -56,7 +56,7 @@ Clear **all** copied marks when results may no longer match what was copied:
 | **Calculate** | **Yes** — judge data was committed and results may have changed. |
 | **Next race** | Yes (already today). |
 | **Clear judge data** | Yes (already today). |
-| Edit gap / reference without Calculate | No — marks still refer to last calculated results until operator recalculates. |
+| Edit gap / reference without Calculate | No — marks still refer to last calculated results until operator recalculates. **Copy All** uses the same snapshot as per-lane copy buttons. |
 
 **Optional later:** only clear on Calculate when `commitAllFormFields` actually changes race data (skip clear on noop Calculate). Not required for first implementation.
 

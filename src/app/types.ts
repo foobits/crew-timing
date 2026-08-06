@@ -1,6 +1,6 @@
-import type { RaceDraft } from "../lib/race-state";
+import type { ComputedRace, RaceDraft } from "../lib/race-state";
 
-export type ConfirmAction = "nextRace" | "clearJudge" | "changeRef";
+export type ConfirmAction = "nextRace" | "clearJudge" | "changeRef" | "removeLane";
 
 export type ResultsSort = "place" | "lane";
 
@@ -14,5 +14,6 @@ export interface AppState {
   confirmAction: ConfirmAction | null;
   pendingReferenceLane: number | null;
   showResults: boolean;
+  calculatedResults: ComputedRace | null;
   resultsSort: ResultsSort;
 }

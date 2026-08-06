@@ -21,6 +21,7 @@
 │  lib/             Pure domain logic                     │
 │    time           Parse/format durations & timestamps   │
 │    race-state     RaceDraft model, computeRace          │
+│    persist-race   Versioned localStorage validation     │
 │    form-commit    Apply field values to RaceDraft       │
 │    ui-helpers     Sort, escape, formatting helpers      │
 └─────────────────────────────────────────────────────────┘
@@ -45,10 +46,10 @@ index.html
 | Action | Purpose |
 |--------|---------|
 | `getState` / `setState` | Read/update UI state |
-| `updateRace` | Mutate `RaceDraft`, invalidate compute cache, schedule render |
+| `updateRace` | Mutate `RaceDraft`, clear calculation snapshot, schedule render |
 | `scheduleRender` | Coalesce DOM work into next animation frame |
 | `renderNow` | Immediate patch (Calculate, copy feedback, confirm) |
-| `getComputed` | Cached `computeRace()` when results visible |
+| `getComputed` | Last calculated result snapshot when results visible |
 
 ## State model
 
@@ -65,11 +66,12 @@ Ephemeral UI state:
 | Field | Role |
 |-------|------|
 | `race` | Current `RaceDraft` |
-| `showResults` | Whether results section reflects last Calculate |
+| `showResults` | Whether results section is visible |
+| `calculatedResults` | Snapshot from last successful Calculate (not live draft) |
 | `copiedLanes` | Checklist of lanes marked copied (not persisted) |
 | `contextCollapsed` | Race context accordion |
-| `confirmAction` | Active confirmation dialog |
-| `undoSnapshot` | One-level undo after Next race / Clear judge |
+| `confirmAction` | Active confirmation dialog (`nextRace`, `clearJudge`, `changeRef`, `removeLane`) |
+| `undoSnapshot` | One-level undo after Next race / Clear judge (expires after 30 s) |
 | `resultsSort` | Place vs lane ordering |
 
 ## Rendering pipeline
@@ -95,9 +97,11 @@ Most interactions patch a **slice** of the DOM via `applyRenderScope` in `ui/pat
 
 `mergeRenderScope` coalesces multiple updates in one frame (higher priority wins). See `app/render-scope.ts`.
 
-### Computed results cache
+### Calculation snapshot
 
-`getComputedRace` memoizes `computeRace(state.race)` keyed by `race.updatedAt`. Invalidated when race mutates or `{ type: "results" }` runs.
+Results are **not** recomputed from the live draft after Calculate. A successful Calculate stores `calculatedResults` (`ComputedRace`); display, Copy All, and sort all read from that snapshot. Draft edits clear the snapshot via `updateRaceDraft` (sets `showResults: false`, `calculatedResults: null`).
+
+Per-lane copy buttons and Copy All therefore always agree until the operator calculates again.
 
 ## Event binding
 
@@ -118,7 +122,9 @@ Calculate / Next race / flush → flushPersistRace (immediate)
 beforeunload / pagehide → flushPendingPersist
 ```
 
-Draft key: `crew-timing-race-draft` in `localStorage`. Stale drafts (previous calendar day) require start-time reconfirmation.
+Draft key: `crew-timing-race-draft` in `localStorage`. Format: `{ version: 1, draft: RaceDraft }` (see [Domain & computation — Persistence](domain-and-computation.md#persistence)). Legacy unversioned drafts still load; the next save writes v1.
+
+Stale drafts (previous calendar day) require start-time reconfirmation.
 
 ## PWA / service worker
 
@@ -139,10 +145,14 @@ sequenceDiagram
   User->>bind-events: tap Calculate
   bind-events->>form-sync: commitAllFormFields(DOM)
   form-sync->>lib: apply*ToRace per field
-  bind-events->>bind-events: setState showResults, clear copiedLanes
-  bind-events->>patch-dom: renderNow(results)
-  patch-dom->>lib: computeRace(race)
-  patch-dom->>User: updated #results-card
+  alt commit or compute errors
+    bind-events->>User: validation toast
+  else valid
+    bind-events->>lib: computeRace(race)
+    bind-events->>bind-events: setState calculatedResults, showResults
+    bind-events->>patch-dom: renderNow(results)
+    patch-dom->>User: updated #results-card
+  end
 ```
 
 ## Related docs

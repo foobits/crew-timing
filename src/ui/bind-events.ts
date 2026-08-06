@@ -5,7 +5,9 @@ import {
   formatCopyAll,
   nextRace,
   removeLane,
+  removeLaneClearingJudgeData,
   setReferenceLane,
+  wouldRemoveReferenceLaneWithJudgeData,
   type RaceDraft,
 } from "../lib/race-state";
 import { canCollapseContext, sortResults } from "../lib/ui-helpers";
@@ -299,8 +301,22 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
       case "calculate":
         (document.activeElement as HTMLElement | null)?.blur();
         {
-          const { state } = commitAllFormFields(getState(), root);
-          setState(() => ({ ...state, showResults: true, copiedLanes: new Set() }));
+          const { state, errors } = commitAllFormFields(getState(), root);
+          if (errors.length > 0) {
+            announce(errors.join(" "));
+            return;
+          }
+          const computed = computeRace(state.race);
+          if (!computed.valid) {
+            announce(computed.errors.join(" "));
+            return;
+          }
+          setState(() => ({
+            ...state,
+            showResults: true,
+            calculatedResults: computed,
+            copiedLanes: new Set(),
+          }));
           renderNow({ type: "results" });
           document.getElementById("results-card")?.scrollIntoView({
             behavior: isInstantScrollPreferred() ? "auto" : "smooth",
@@ -312,6 +328,11 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         updateRace((race) => addLane(race), { type: "lanes" });
         break;
       case "remove-lane":
+        if (wouldRemoveReferenceLaneWithJudgeData(getState().race)) {
+          setState((s) => ({ ...s, confirmAction: "removeLane" }));
+          scheduleRender({ type: "dialog" });
+          break;
+        }
         updateRace((race) => removeLane(race), { type: "lanes" });
         break;
       case "toggle-context":
@@ -406,7 +427,10 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
     const state = getState();
 
     if (state.confirmAction === "nextRace") {
-      const undo = saveUndoSnapshot(state, () => scheduleRender({ type: "banners" }));
+      const undo = saveUndoSnapshot(state, () => {
+        setState((s) => ({ ...s, ...clearUndoSnapshot(s) }));
+        scheduleRender({ type: "banners" });
+      });
       setState((s) => ({
         ...s,
         ...undo,
@@ -415,13 +439,17 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         copiedLanes: new Set(),
         contextCollapsed: false,
         showResults: false,
+        calculatedResults: null,
         confirmAction: null,
         pendingReferenceLane: null,
       }));
       flushPersistRace(getState().race);
       renderNow({ type: "full" });
     } else if (state.confirmAction === "clearJudge") {
-      const undo = saveUndoSnapshot(state, () => scheduleRender({ type: "banners" }));
+      const undo = saveUndoSnapshot(state, () => {
+        setState((s) => ({ ...s, ...clearUndoSnapshot(s) }));
+        scheduleRender({ type: "banners" });
+      });
       const race = clearJudgeData(state.race);
       flushPersistRace(race);
       setState((s) => ({
@@ -430,8 +458,16 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         race,
         copiedLanes: new Set(),
         showResults: false,
+        calculatedResults: null,
         confirmAction: null,
         pendingReferenceLane: null,
+      }));
+      renderNow({ type: "full" });
+    } else if (state.confirmAction === "removeLane") {
+      setState((s) => ({
+        ...s,
+        ...updateRaceDraft(s, (race) => removeLaneClearingJudgeData(race)),
+        confirmAction: null,
       }));
       renderNow({ type: "full" });
     } else if (state.confirmAction === "changeRef" && state.pendingReferenceLane !== null) {

@@ -81,7 +81,9 @@ How much **ahead (+)** or **behind (−)** each boat finished relative to the re
 
 ### Calculate and mobile commit
 
-**Calculate** reads live values from every field, even if you have not blurred out of an input yet (common on mobile). Fix any validation toast, then calculate again.
+**Calculate** reads live values from every field, even if you have not blurred out of an input yet (common on mobile). If any field fails validation, Calculate shows a toast and does not update results. Fix the error and calculate again.
+
+Displayed results, per-lane copy buttons, and **Copy All** all reflect the **last successful Calculate** — editing inputs afterward does not change them until you calculate again.
 
 ### Worked example
 
@@ -111,6 +113,8 @@ Rendering is scoped (`render-scope.ts`) so most interactions patch only the affe
 
 ## Development
 
+Requires **Node.js 22+** (matches CI).
+
 ```bash
 npm run dev            # local dev server
 npm run build          # production build → dist/
@@ -128,12 +132,12 @@ npm run test:watch     # Vitest watch mode
 
 | Area | What's covered |
 |------|----------------|
-| `src/lib/` | Parsing, race computation, form commit |
+| `src/lib/` | Parsing, race computation, form commit, persistence validation |
 | `src/app/` | State, debounced persistence, form sync, app bootstrap, clipboard |
 | `src/ui/` | Event binding, render helpers, partial DOM patches, components, focus/toast |
 | `e2e/` | Desktop + mobile race flows, fixture regression, copy styling, gap sign toggle, copied-lane checklist |
 
-**197 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~94% statements / ~98% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
+**220 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~93% statements / ~97% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
 
 **Local E2E note:** Mobile Safari tests may skip on macOS 26+ when Playwright WebKit cannot reach the preview server. **CI on Ubuntu is the source of truth** for mobile E2E (see PR template). Desktop + fixture regression run locally via `npm run test:e2e`.
 
@@ -163,8 +167,10 @@ Test in a **non-scoring event** before relying on this app:
 - **Copied lanes** show a green card after a successful copy. Tap **Copy timestamp** again (label becomes **Copied — tap to unmark**) to clear one lane; **Calculate** clears all marks. Details: [design doc](docs/copied-lane-feedback.md).
 - **Next race** clears all data including the localStorage draft.
 - **Clear judge data** keeps the start timestamp and event label.
+- **Removing the reference lane** (when it is the last lane and judge data exists) prompts for confirmation and clears judge data on confirm.
+- **Undo** after Next race or Clear judge data expires after 30 seconds.
 - **Stale drafts** from a previous calendar day prompt start-time reconfirmation (uses local date, not UTC).
-- **Persistence** is debounced (~400 ms) during typing; pending writes flush on tab close (`beforeunload` / `pagehide`).
+- **Persistence** is debounced (~400 ms) during typing; pending writes flush on tab close (`beforeunload` / `pagehide`). Drafts are stored in a versioned format (`{ version: 1, draft: … }`); older unversioned drafts still restore. See [persistence docs](docs/domain-and-computation.md#persistence).
 - Midnight rollover is handled internally but not emphasized in the UI.
 
 This app is an arithmetic and data-entry aid. It does not replace the official timing record.

@@ -60,7 +60,7 @@ Bridges raw input strings → `RaceDraft` updates:
 - `applyReferenceElapsedToRace`
 - `applyLaneGapToRace`
 
-`commitPendingFormFields` merges live DOM values — critical on mobile where `change` may not fire before Calculate.
+`commitPendingFormFields` merges live DOM values — critical on mobile where `change` may not fire before Calculate. **Calculate** aborts when any field fails to parse; it does not show results from stale valid state left in memory.
 
 ## Computation (`computeRace`)
 
@@ -97,11 +97,57 @@ Empty lanes and lanes without gaps are skipped. Validation errors (missing start
 
 `setReferenceLane` rebases all existing gaps when the operator picks a new reference. If gaps would be invalidated, a confirmation dialog runs first (`confirmAction: "changeRef"`).
 
+## Removing lanes
+
+`removeLane` drops the last lane. When that lane is the **reference lane** and judge data exists (reference elapsed or any entered gaps), the app prompts first (`confirmAction: "removeLane"`). On confirm, the lane is removed, reference moves to lane 1, and judge data is cleared while keeping the start timestamp.
+
 ## Persistence
 
-- `persistRace` / `loadPersistedRace` — JSON in `localStorage`.
-- Invalid or corrupt drafts are rejected; app starts fresh.
-- `isStaleDraft` compares `startDate` to local today — forces reconfirmation.
+Implemented in `lib/persist-race.ts`; `race-state.ts` exposes `persistRace` / `loadPersistedRace`.
+
+### Storage format (v1)
+
+Drafts are stored in `localStorage` under key `crew-timing-race-draft` as a versioned envelope:
+
+```json
+{
+  "version": 1,
+  "draft": { /* RaceDraft */ }
+}
+```
+
+New saves always write v1. Loads accept v1 and **legacy unversioned** drafts (plain `RaceDraft` JSON from earlier builds).
+
+### Validation
+
+`validateRaceDraft` checks every field before a draft enters app state:
+
+| Field | Rules |
+|-------|-------|
+| `eventLabel` | string |
+| `startTimestampMs` | `null` or non-negative finite number |
+| `startDate` | `YYYY-MM-DD` |
+| `startConfirmed` | boolean |
+| `referenceLane` | integer ≥ 1, ≤ lane count |
+| `referenceElapsedMs` | `null` or non-negative finite number |
+| `lanes` | array length ≥ 1; each lane numbered `1…n` sequentially |
+| `updatedAt` | ISO timestamp (invalid v1 values get a fresh timestamp) |
+
+Each `LaneDraft` requires valid `status` (`active` \| `empty`), `gapMs`, and `gapNegative`.
+
+Invalid or corrupt drafts are rejected; the app starts fresh.
+
+### Legacy migration
+
+Unversioned drafts (no `version` key) are migrated with defaults from `createEmptyRace()` for **missing** fields only. If a field is **present but wrong type**, the draft is rejected — no silent coercion.
+
+Unknown `version` values are rejected.
+
+When adding fields to `RaceDraft`, bump `PERSISTENCE_VERSION`, add a migration step in `parsePersistedRace`, and extend validation.
+
+### Stale drafts
+
+`isStaleDraft` compares `startDate` to local today — forces start-time reconfirmation before Calculate.
 
 ## Regression fixture
 
