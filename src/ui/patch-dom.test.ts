@@ -36,7 +36,7 @@ describe("getComputedRace", () => {
   });
 
   it("returns an empty computed result when no calculation snapshot exists", () => {
-    const state = sampleAppState({ showResults: true, calculatedResults: null });
+    const state = sampleAppState({ showResults: true, calculationSnapshot: null });
     const computed = getComputedRace(state);
 
     expect(computed.valid).toBe(false);
@@ -63,7 +63,7 @@ describe("getComputedRace", () => {
 
     const edited = sampleAppState({
       showResults: true,
-      calculatedResults: snapshot,
+      calculationSnapshot: { race: structuredClone(state.race), computed: snapshot },
       race: touchRace({
         ...state.race,
         referenceElapsedMs: 999_999,

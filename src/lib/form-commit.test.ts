@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createEmptyRace, type RaceDraft } from "./race-state";
+import * as time from "./time";
 import {
   applyLaneGapToRace,
   applyReferenceElapsedToRace,
@@ -7,6 +8,10 @@ import {
   commitPendingFormFields,
   isFieldApplyFailure,
 } from "./form-commit";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function raceWithStart(): RaceDraft {
   const result = applyStartTimestampToRace(createEmptyRace(), "10:05:03.111");
@@ -99,6 +104,14 @@ describe("applyLaneGapToRace", () => {
   it("returns error for invalid gap value", () => {
     const result = applyLaneGapToRace(createEmptyRace(), 2, "bad");
     expect(result.ok).toBe(false);
+  });
+
+  it("returns error when an explicit signed gap parses without signed metadata", () => {
+    vi.spyOn(time, "parseGap").mockReturnValue({ ok: true, value: 1_000 });
+    const result = applyLaneGapToRace(createEmptyRace(), 2, "+1.000");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("Invalid gap format.");
   });
 });
 

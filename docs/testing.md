@@ -4,7 +4,7 @@
 
 | Layer | Tool | Location | Count (approx.) |
 |-------|------|----------|-----------------|
-| Unit | Vitest + happy-dom | `src/**/*.test.ts` | 220 |
+| Unit | Vitest + happy-dom | `src/**/*.test.ts` | 264 |
 | E2E | Playwright | `e2e/*.spec.ts` | 12 |
 | Fixture contract | Playwright | `e2e/fixture.spec.ts` | 1 scenario |
 
@@ -25,7 +25,7 @@ npm run test:coverage     # with v8 coverage gates
 Configured in `vite.config.ts`:
 
 - **Includes:** `src/lib/`, `src/app/`, `src/ui/`
-- **Thresholds:** ~85% statements/lines/functions, ~80% branches (see config for exact values)
+- **Thresholds:** 90% statements/lines/functions, 85% branches (see `vite.config.ts`)
 - **Excludes:** `main.ts`, `render-app.ts`, test harness files
 
 ### Environment
@@ -49,7 +49,7 @@ Configured in `vite.config.ts`:
 - Mounts real event bindings against `#app`.
 - Mocks `clipboard.copyText` where needed.
 - Asserts state + `renderNow` / `scheduleRender` calls.
-- Covers Calculate validation abort, calculation snapshot consistency, reference-lane removal confirm, undo expiry.
+- Covers Calculate validation abort, calculation snapshot consistency, stale results, reference-lane removal confirm, undo expiry.
 
 **Patch granularity** — `ui/patch-dom.test.ts`:
 

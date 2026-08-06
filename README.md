@@ -81,9 +81,9 @@ How much **ahead (+)** or **behind (−)** each boat finished relative to the re
 
 ### Calculate and mobile commit
 
-**Calculate** reads live values from every field, even if you have not blurred out of an input yet (common on mobile). If any field fails validation, Calculate shows a toast and does not update results. Fix the error and calculate again.
+**Calculate** reads live values from every field, even if you have not blurred out of an input yet (common on mobile). If any field fails validation, Calculate shows a toast and does not update results. If results from a prior calculation are still visible, a warning banner appears and copy actions are disabled until you calculate successfully again.
 
-Displayed results, per-lane copy buttons, and **Copy All** all reflect the **last successful Calculate** — editing inputs afterward does not change them until you calculate again.
+Displayed results, per-lane copy buttons, and **Copy All** all reflect the **last successful Calculate** — including the start time and event label copied by **Copy All**. Editing inputs afterward does not change them until you calculate again.
 
 ### Worked example
 
@@ -113,7 +113,7 @@ Rendering is scoped (`render-scope.ts`) so most interactions patch only the affe
 
 ## Development
 
-Requires **Node.js 22+** (matches CI).
+Requires **Node.js 22.12+** (matches Vite 7 and CI).
 
 ```bash
 npm run dev            # local dev server
@@ -137,7 +137,7 @@ npm run test:watch     # Vitest watch mode
 | `src/ui/` | Event binding, render helpers, partial DOM patches, components, focus/toast |
 | `e2e/` | Desktop + mobile race flows, fixture regression, copy styling, gap sign toggle, copied-lane checklist |
 
-**220 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~93% statements / ~97% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
+**224 unit tests.** Coverage thresholds (via `vite.config.ts`) apply to `src/lib/`, `src/app/`, and `src/ui/` — currently ~93% statements / ~97% lines. `bind-events.ts` has dedicated unit tests via `src/test/bind-app.ts`; E2E exercises the full wired app.
 
 **Local E2E note:** Mobile Safari tests may skip on macOS 26+ when Playwright WebKit cannot reach the preview server. **CI on Ubuntu is the source of truth** for mobile E2E (see PR template). Desktop + fixture regression run locally via `npm run test:e2e`.
 

@@ -80,6 +80,39 @@ describe("formatGapInput", () => {
       }),
     ).toBe("5.0");
   });
+
+  it("formats minute-or-longer gaps as MM:SS.SSS", () => {
+    expect(
+      formatGapInput({
+        lane: 2,
+        status: "active",
+        gapMs: 83_450,
+        gapNegative: false,
+      }),
+    ).toBe("1:23.450");
+  });
+
+  it("returns an empty string for unset gaps", () => {
+    expect(
+      formatGapInput({
+        lane: 2,
+        status: "active",
+        gapMs: null,
+        gapNegative: false,
+      }),
+    ).toBe("");
+  });
+
+  it("returns zero for an explicit zero gap", () => {
+    expect(
+      formatGapInput({
+        lane: 2,
+        status: "active",
+        gapMs: 0,
+        gapNegative: false,
+      }),
+    ).toBe("0");
+  });
 });
 
 describe("escape helpers", () => {

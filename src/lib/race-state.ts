@@ -187,27 +187,33 @@ export function setReferenceLane(
     !clearIfMissing
   ) {
     const newRefOldSigned = toSigned(newRefLane.gapMs, newRefLane.gapNegative);
-    if (referenceElapsedMs !== null) {
-      const gapVal = newRefOldSigned.negative ? -newRefOldSigned.ms : newRefOldSigned.ms;
-      referenceElapsedMs = referenceElapsedMs + gapVal;
+    const gapVal = newRefOldSigned.negative ? -newRefOldSigned.ms : newRefOldSigned.ms;
+    const rebasedElapsed =
+      referenceElapsedMs !== null ? referenceElapsedMs + gapVal : referenceElapsedMs;
+
+    if (rebasedElapsed !== null && rebasedElapsed < 0) {
+      lanes = createDefaultLanes(newReferenceLane, race.lanes.length);
+      referenceElapsedMs = null;
+    } else {
+      referenceElapsedMs = rebasedElapsed;
+      lanes = lanes.map((lane) => {
+        if (lane.lane === newReferenceLane) {
+          return { ...lane, status: "active", gapMs: 0, gapNegative: false };
+        }
+        if (lane.status !== "active" || lane.gapMs === null) {
+          return lane;
+        }
+        const rebased = subtractSigned(
+          toSigned(lane.gapMs, lane.gapNegative),
+          newRefOldSigned,
+        );
+        return {
+          ...lane,
+          gapMs: rebased.ms,
+          gapNegative: rebased.negative,
+        };
+      });
     }
-    lanes = lanes.map((lane) => {
-      if (lane.lane === newReferenceLane) {
-        return { ...lane, status: "active", gapMs: 0, gapNegative: false };
-      }
-      if (lane.status !== "active" || lane.gapMs === null) {
-        return lane;
-      }
-      const rebased = subtractSigned(
-        toSigned(lane.gapMs, lane.gapNegative),
-        newRefOldSigned,
-      );
-      return {
-        ...lane,
-        gapMs: rebased.ms,
-        gapNegative: rebased.negative,
-      };
-    });
   } else {
     lanes = createDefaultLanes(newReferenceLane, race.lanes.length);
   }
@@ -248,9 +254,16 @@ export function computeRace(race: RaceDraft): ComputedRace {
   }
   if (race.referenceElapsedMs === null) {
     errors.push("Enter reference elapsed time.");
+  } else if (race.referenceElapsedMs < 0) {
+    errors.push("Reference elapsed time cannot be negative.");
   }
 
-  if (errors.length > 0 || race.startTimestampMs === null || race.referenceElapsedMs === null) {
+  if (
+    errors.length > 0 ||
+    race.startTimestampMs === null ||
+    race.referenceElapsedMs === null ||
+    race.referenceElapsedMs < 0
+  ) {
     return { valid: false, errors, results: [] };
   }
 

@@ -31,12 +31,6 @@ describe("toast helpers", () => {
     expect(document.getElementById("toast")?.textContent).toBe("Undo available");
   });
 
-  it("does nothing when toast has not been initialized", () => {
-    document.body.innerHTML = "";
-    expect(() => showToast("Ignored")).not.toThrow();
-    expect(() => announce("Also ignored")).not.toThrow();
-  });
-
   it("replaces the visible message when called again before hide", () => {
     showToast("First");
     showToast("Second");

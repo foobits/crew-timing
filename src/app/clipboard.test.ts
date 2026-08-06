@@ -50,6 +50,28 @@ describe("copyText", () => {
     await expect(copyText("fallback")).resolves.toBe(false);
   });
 
+  it("returns false when execCommand throws and clipboard is unavailable", async () => {
+    vi.stubGlobal("navigator", {});
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn(() => {
+        throw new Error("blocked");
+      }),
+    });
+
+    await expect(copyText("blocked")).resolves.toBe(false);
+  });
+
+  it("returns false when execCommand fails and clipboard API is missing", async () => {
+    vi.stubGlobal("navigator", {});
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(false),
+    });
+
+    await expect(copyText("fallback")).resolves.toBe(false);
+  });
+
   it("uses a viewport-positioned textarea for sync copy (not sr-only)", async () => {
     vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn() } });
     const created: HTMLTextAreaElement[] = [];

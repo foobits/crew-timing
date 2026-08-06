@@ -2,7 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as clipboard from "../app/clipboard";
-import { touchRace } from "../lib/race-state";
+import { createInitialState } from "../app/state";
+import { createEmptyRace, touchRace } from "../lib/race-state";
 import { sampleAppState, sampleRaceWithReferenceLane10 } from "../test/fixtures";
 import { mountBoundApp } from "../test/bind-app";
 import { applyRenderScope } from "./patch-dom";
@@ -143,7 +144,7 @@ describe("bindEventsOnce", () => {
     app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
 
     expect(app.getState().showResults).toBe(true);
-    expect(app.getState().calculatedResults?.valid).toBe(true);
+    expect(app.getState().calculationSnapshot?.computed.valid).toBe(true);
     expect(app.renderNow).toHaveBeenCalledWith({ type: "results" });
     expect(app.root.querySelector(".result-card")).not.toBeNull();
   });
@@ -160,9 +161,49 @@ describe("bindEventsOnce", () => {
     app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
 
     expect(app.getState().showResults).toBe(false);
-    expect(app.getState().calculatedResults).toBeNull();
+    expect(app.getState().calculationSnapshot).toBeNull();
+    expect(app.getState().resultsStale).toBe(false);
     expect(document.getElementById("toast")?.textContent).toBeTruthy();
     expect(app.root.querySelector(".result-card")).toBeNull();
+  });
+
+  it("marks stale results when Calculate fails after a prior success", () => {
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    fillTimeInput(app.root, "#start-ts", "10:05:03.111");
+    fillTimeInput(app.root, "#ref-elapsed", "01:23.450");
+
+    const ref = app.root.querySelector<HTMLInputElement>("#ref-elapsed")!;
+    ref.value = "not-valid";
+    ref.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+
+    expect(app.getState().resultsStale).toBe(true);
+    expect(app.getState().calculationSnapshot?.computed.valid).toBe(true);
+    expect(app.root.querySelector(".results-stale-banner")?.textContent).toContain(
+      "Calculation failed",
+    );
+    const lane2Copy = app.root.querySelector<HTMLButtonElement>('[data-result-lane="2"] button');
+    const copyAll = Array.from(
+      app.root.querySelectorAll<HTMLButtonElement>(".results-header-actions button"),
+    ).find((button) => button.textContent === "Copy all");
+    expect(lane2Copy?.disabled).toBe(true);
+    expect(copyAll?.disabled).toBe(true);
+  });
+
+  it("uses the calculation snapshot race for copy all", async () => {
+    const app = mountBoundApp(sampleAppState());
+    fillTimeInput(app.root, "#start-ts", "10:05:03.111");
+    fillTimeInput(app.root, "#ref-elapsed", "01:23.450");
+    app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+
+    fillTimeInput(app.root, "#start-ts", "11:11:11.111");
+    app.root.querySelector<HTMLElement>('[data-action="copy-all"]')?.click();
+    await vi.waitFor(() => expect(clipboard.copyText).toHaveBeenCalled());
+
+    const copiedAll = vi.mocked(clipboard.copyText).mock.calls.at(-1)?.[0] ?? "";
+    expect(copiedAll).toContain("10:05:03.111");
+    expect(copiedAll).not.toContain("11:11:11.111");
   });
 
   it("keeps copy-all aligned with displayed per-lane copy values after draft edits", async () => {
@@ -466,5 +507,159 @@ describe("bindEventsOnce", () => {
     lane2.value = "3.000";
     lane2.dispatchEvent(new Event("blur", { bubbles: true }));
     expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs).toBe(3_000);
+  });
+
+  it("commits reference elapsed on blur", () => {
+    const app = mountBoundApp(sampleAppState());
+    const ref = app.root.querySelector<HTMLInputElement>("#ref-elapsed")!;
+    ref.value = "02:00.000";
+    ref.dispatchEvent(new Event("blur", { bubbles: true }));
+    expect(app.getState().race.referenceElapsedMs).toBe(120_000);
+  });
+
+  it("ignores invalid reference elapsed on blur", () => {
+    const app = mountBoundApp(sampleAppState());
+    const before = app.getState().race.referenceElapsedMs;
+    const ref = app.root.querySelector<HTMLInputElement>("#ref-elapsed")!;
+    ref.value = "bad";
+    ref.dispatchEvent(new Event("blur", { bubbles: true }));
+    expect(app.getState().race.referenceElapsedMs).toBe(before);
+    expect(document.getElementById("ref-elapsed-hint")?.textContent).toBeTruthy();
+    expect(ref.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("ignores invalid lane gap on blur", () => {
+    const app = mountBoundApp(sampleAppState());
+    const before = app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs;
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "not-a-gap";
+    lane2.dispatchEvent(new Event("blur", { bubbles: true }));
+    expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs).toBe(before);
+    expect(document.getElementById("gap-2-hint")?.textContent).toBeTruthy();
+  });
+
+  it("does not commit reference elapsed on input alone", () => {
+    const app = mountBoundApp(sampleAppState());
+    const before = app.getState().race.referenceElapsedMs;
+    const ref = app.root.querySelector<HTMLInputElement>("#ref-elapsed")!;
+    ref.value = "7";
+    ref.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    expect(app.getState().race.referenceElapsedMs).toBe(before);
+
+    ref.value = "07:23.450";
+    ref.dispatchEvent(new Event("blur", { bubbles: true }));
+    expect(app.getState().race.referenceElapsedMs).toBe(443_450);
+  });
+
+  it("does not commit lane gap on input alone", () => {
+    const app = mountBoundApp(sampleAppState());
+    const before = app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs;
+    const lane2 = app.root.querySelector<HTMLInputElement>('[data-gap-input="2"]')!;
+    lane2.value = "7";
+    lane2.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs).toBe(before);
+
+    lane2.value = "2.511";
+    lane2.dispatchEvent(new Event("blur", { bubbles: true }));
+    expect(app.getState().race.lanes.find((lane) => lane.lane === 2)?.gapMs).toBe(2_511);
+  });
+
+  it("shows inline validation while typing invalid reference elapsed", () => {
+    const app = mountBoundApp(sampleAppState());
+    const ref = app.root.querySelector<HTMLInputElement>("#ref-elapsed")!;
+    ref.value = "0:99.000";
+    ref.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    expect(document.getElementById("ref-elapsed-hint")?.textContent).toContain("59");
+  });
+
+  it("does not copy all when results are stale", async () => {
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+    vi.mocked(clipboard.copyText).mockClear();
+
+    app.setState((state) => ({ ...state, resultsStale: true }));
+    app.root.querySelector<HTMLElement>('[data-action="copy-all"]')?.click();
+    await Promise.resolve();
+
+    expect(clipboard.copyText).not.toHaveBeenCalled();
+  });
+
+  it("does not copy a lane when results are stale", async () => {
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+    vi.mocked(clipboard.copyText).mockClear();
+
+    app.setState((state) => ({ ...state, resultsStale: true }));
+    app.root.querySelector<HTMLButtonElement>('[data-result-lane="2"] button')?.click();
+    await Promise.resolve();
+
+    expect(clipboard.copyText).not.toHaveBeenCalled();
+  });
+
+  it("announces manual copy when copy all fails", async () => {
+    vi.mocked(clipboard.copyText).mockResolvedValue(false);
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+    applyRenderScope(app.root, app.getState(), { type: "results" });
+
+    app.root.querySelector<HTMLElement>('[data-action="copy-all"]')?.click();
+    await vi.waitFor(() =>
+      expect(document.getElementById("toast")?.textContent).toBe("Select and copy manually"),
+    );
+  });
+
+  it("does not mark results stale when calculate fails before any prior snapshot", () => {
+    const app = mountBoundApp({ ...createInitialState(), race: createEmptyRace() });
+    app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+    expect(app.getState().resultsStale).toBe(false);
+    expect(app.getState().calculationSnapshot).toBeNull();
+  });
+
+  it("ignores context collapse when start and reference elapsed are missing", () => {
+    const app = mountBoundApp(
+      sampleAppState({
+        race: touchRace(createEmptyRace()),
+      }),
+    );
+    expect(app.root.querySelector('[data-action="toggle-context"]')).toBeNull();
+  });
+
+  it("clears an orphaned reference-lane confirmation through confirm ok", () => {
+    const app = mountBoundApp(
+      sampleAppState({ confirmAction: "changeRef", pendingReferenceLane: null }),
+    );
+    applyRenderScope(app.root, app.getState(), { type: "dialog" });
+
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+
+    expect(app.getState().confirmAction).toBeNull();
+    expect(app.scheduleRender).toHaveBeenCalledWith({ type: "dialog" });
+  });
+
+  it("marks results stale when compute rejects missing reference elapsed", () => {
+    const app = mountBoundApp(sampleAppState({ showResults: true }));
+
+    const ref = app.root.querySelector<HTMLInputElement>("#ref-elapsed")!;
+    ref.value = "";
+    ref.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    app.root.querySelector<HTMLElement>('[data-action="calculate"]')?.click();
+
+    expect(app.getState().resultsStale).toBe(true);
+    expect(document.getElementById("toast")?.textContent).toContain("reference elapsed");
+  });
+
+  it("expires undo after clear judge", () => {
+    vi.useFakeTimers();
+    renderFooter(true);
+    const app = mountBoundApp(sampleAppState());
+
+    document.querySelector<HTMLElement>('[data-action="clear-judge"]')?.click();
+    app.root.querySelector<HTMLElement>('[data-action="confirm-ok"]')?.click();
+    expect(app.getState().undoSnapshot).not.toBeNull();
+
+    vi.advanceTimersByTime(30_000);
+    expect(app.getState().undoSnapshot).toBeNull();
+
+    vi.useRealTimers();
   });
 });

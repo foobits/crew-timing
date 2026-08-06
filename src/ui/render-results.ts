@@ -6,6 +6,8 @@ import { renderButton, renderToggleGroup } from "./components";
 
 export const COPY_TIMESTAMP_LABEL = "Copy timestamp";
 export const COPIED_UNMARK_LABEL = "Copied — tap to unmark";
+export const STALE_RESULTS_MESSAGE =
+  "Calculation failed — results below are from the previous calculation.";
 
 function renderResultsSortToggle(resultsSort: AppState["resultsSort"]): string {
   return renderToggleGroup({
@@ -35,17 +37,22 @@ function renderResultCard(state: AppState, result: LaneResult): string {
   const copied = state.copiedLanes.has(result.lane);
   const copiedClass = copied ? " copied" : "";
   const copyLabel = copied ? COPIED_UNMARK_LABEL : COPY_TIMESTAMP_LABEL;
+  const copyDisabled = state.resultsStale;
 
   return `
     <article class="result-card${copiedClass}" data-result-lane="${result.lane}">
       <div class="result-place">${place} · Lane ${result.lane}${tied}</div>
       <div class="timestamp-label">CrewTimer finish timestamp</div>
       <div class="timestamp-value">${result.finishFormatted}</div>
-      ${renderButton({
-        label: copyLabel,
-        variant: "copy",
-        data: { "copy-lane": result.lane, "copy-value": result.finishFormatted },
-      })}
+      ${
+        copyDisabled
+          ? renderButton({ label: copyLabel, variant: "copy", disabled: true })
+          : renderButton({
+              label: copyLabel,
+              variant: "copy",
+              data: { "copy-lane": result.lane, "copy-value": result.finishFormatted },
+            })
+      }
       <div class="elapsed-check">Calculated elapsed time: ${result.elapsedFormatted}</div>
     </article>
   `;
@@ -55,12 +62,18 @@ export function renderResultCardHtml(state: AppState, result: LaneResult): strin
   return renderResultCard(state, result);
 }
 
+function renderResultsStaleBanner(state: AppState): string {
+  if (!state.showResults || !state.resultsStale) return "";
+  return `<p class="results-stale-banner" role="status">${escapeHtml(STALE_RESULTS_MESSAGE)}</p>`;
+}
+
 export function renderResultsBody(
   state: AppState,
   computed: ComputedRace,
   displayedResults: LaneResult[],
 ): string {
   return `
+      ${renderResultsStaleBanner(state)}
       ${
         state.showResults && computed.errors.length
           ? `<ul class="errors">${computed.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`
@@ -80,7 +93,11 @@ function renderResultsHeaderActions(state: AppState, computed: ComputedRace): st
   if (!state.showResults || !computed.valid) return "";
   return `<div class="results-header-actions">
                 ${renderResultsSortToggle(state.resultsSort)}
-                ${renderButton({ label: "Copy all", variant: "small", action: "copy-all" })}
+                ${
+                  state.resultsStale
+                    ? renderButton({ label: "Copy all", variant: "small", disabled: true })
+                    : renderButton({ label: "Copy all", variant: "small", action: "copy-all" })
+                }
               </div>`;
 }
 

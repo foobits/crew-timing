@@ -4,6 +4,11 @@ export type ConfirmAction = "nextRace" | "clearJudge" | "changeRef" | "removeLan
 
 export type ResultsSort = "place" | "lane";
 
+export interface CalculationSnapshot {
+  race: RaceDraft;
+  computed: ComputedRace;
+}
+
 export interface AppState {
   race: RaceDraft;
   contextCollapsed: boolean;
@@ -14,6 +19,7 @@ export interface AppState {
   confirmAction: ConfirmAction | null;
   pendingReferenceLane: number | null;
   showResults: boolean;
-  calculatedResults: ComputedRace | null;
+  calculationSnapshot: CalculationSnapshot | null;
+  resultsStale: boolean;
   resultsSort: ResultsSort;
 }

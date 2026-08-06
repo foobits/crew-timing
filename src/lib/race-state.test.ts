@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as time from "./time";
 import {
   addLane,
   clearJudgeData,
@@ -106,6 +107,29 @@ describe("setReferenceLane", () => {
     race = setReferenceLane(race, 5);
     const lane3 = race.lanes.find((lane) => lane.lane === 3);
     expect(lane3?.gapNegative).toBe(true);
+  });
+
+  it("clears judge data when rebasing would make reference elapsed negative", () => {
+    let race = sampleRace();
+    race = {
+      ...race,
+      referenceElapsedMs: 1_000,
+      lanes: race.lanes.map((lane) => {
+        if (lane.lane === 5) {
+          return { ...lane, status: "active" as const, gapMs: 2_000, gapNegative: true };
+        }
+        if (lane.lane === 3) {
+          return { ...lane, status: "active" as const, gapMs: 0, gapNegative: false };
+        }
+        return lane;
+      }),
+    };
+
+    race = setReferenceLane(race, 5);
+    expect(race.referenceLane).toBe(5);
+    expect(race.referenceElapsedMs).toBeNull();
+    expect(race.lanes.find((lane) => lane.lane === 3)?.gapMs).toBeNull();
+    expect(computeRace(race).valid).toBe(false);
   });
 });
 
@@ -334,5 +358,21 @@ describe("computeRace edge cases", () => {
     race.referenceElapsedMs = null;
     const computed = computeRace(race);
     expect(computed.errors).toContain("Enter reference elapsed time.");
+  });
+
+  it("rejects a negative reference elapsed time", () => {
+    const race = sampleRace();
+    race.referenceElapsedMs = -1_000;
+    const computed = computeRace(race);
+    expect(computed.errors).toContain("Reference elapsed time cannot be negative.");
+    expect(computed.valid).toBe(false);
+  });
+
+  it("reports timestamp mismatch when finish round-trip fails", () => {
+    vi.spyOn(time, "elapsedBetweenTimestamps").mockReturnValue(0);
+    const computed = computeRace(sampleRace());
+    expect(computed.valid).toBe(false);
+    expect(computed.errors.some((error) => error.includes("timestamp mismatch"))).toBe(true);
+    vi.restoreAllMocks();
   });
 });

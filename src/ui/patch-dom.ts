@@ -18,10 +18,10 @@ import {
 const EMPTY_COMPUTED: ComputedRace = { valid: false, results: [], errors: [] };
 
 export function getComputedRace(state: AppState): ComputedRace {
-  if (!state.showResults || !state.calculatedResults) {
+  if (!state.showResults || !state.calculationSnapshot) {
     return EMPTY_COMPUTED;
   }
-  return state.calculatedResults;
+  return state.calculationSnapshot.computed;
 }
 
 export function invalidateComputedRace(): void {

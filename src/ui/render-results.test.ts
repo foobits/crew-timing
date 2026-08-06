@@ -55,6 +55,16 @@ describe("renderResultsSection", () => {
     expect(html).toContain("Copied — tap to unmark");
   });
 
+  it("disables copy actions and shows a stale banner after a failed recalculation", () => {
+    const state = sampleAppState({ showResults: true, resultsStale: true });
+    const computed = computeRace(state.race);
+    const html = renderResultsSection(state, computed, computed.results);
+
+    expect(html).toContain("Calculation failed");
+    expect(html).toContain("disabled");
+    expect(html).not.toContain('data-action="copy-all"');
+  });
+
   it("shows the default copy label when a lane is not copied", () => {
     const state = sampleAppState({ showResults: true });
     const computed = computeRace(state.race);

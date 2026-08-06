@@ -24,8 +24,8 @@ export function sampleAppState(overrides: Partial<AppState> = {}): AppState {
   return {
     ...createInitialState(),
     race,
-    ...(overrides.showResults && overrides.calculatedResults === undefined
-      ? { calculatedResults: computeRace(race) }
+    ...(overrides.showResults && overrides.calculationSnapshot === undefined
+      ? { calculationSnapshot: { race: structuredClone(race), computed: computeRace(race) } }
       : {}),
     ...overrides,
   };

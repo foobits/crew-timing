@@ -37,7 +37,7 @@ crew-timing/
 | File | Responsibility |
 |------|----------------|
 | `create-app.ts` | State container, render scheduling, wires bind-events |
-| `types.ts` | `AppState`, `ConfirmAction`, `ResultsSort`, `calculatedResults` |
+| `types.ts` | `AppState`, `CalculationSnapshot`, `ConfirmAction`, `ResultsSort` |
 | `state.ts` | Initial state, load persisted draft, undo snapshot |
 | `form-sync.ts` | `applyStartTimestamp`, `applyLaneGap`, `commitAllFormFields` |
 | `persist-scheduler.ts` | Debounced / immediate `persistRace` |

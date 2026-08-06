@@ -17,6 +17,7 @@ import { initToast } from "../ui/toast";
 export interface BoundApp {
   root: HTMLElement;
   getState: () => AppState;
+  setState: (updater: (state: AppState) => AppState) => void;
   scheduleRender: ReturnType<typeof vi.fn>;
   renderNow: ReturnType<typeof vi.fn>;
 }
@@ -51,6 +52,9 @@ export function bindTestApp(root: HTMLElement, initialState: AppState): BoundApp
   return {
     root,
     getState: () => state,
+    setState: (updater) => {
+      state = updater(state);
+    },
     scheduleRender,
     renderNow,
   };

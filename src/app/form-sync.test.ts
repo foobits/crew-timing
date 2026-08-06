@@ -14,11 +14,11 @@ import {
 import { formatGapWhileTyping } from "../lib/time";
 
 describe("applyInputFormat", () => {
-  it("formats the input value in place", () => {
+  it("returns the formatted value without mutating the input when unchanged", () => {
     const input = document.createElement("input");
-    input.value = "123450";
+    input.value = "1:23.450";
 
-    const formatted = applyInputFormat(input, formatGapWhileTyping);
+    const formatted = applyInputFormat(input, (value) => value);
 
     expect(formatted).toBe("1:23.450");
     expect(input.value).toBe("1:23.450");
@@ -54,6 +54,17 @@ describe("applyStartTimestamp", () => {
 
     expect(result.error).toBeTruthy();
     expect(result.state).toBe(state);
+  });
+
+  it("clears start timestamp without clearing restored banner on empty input", async () => {
+    const state = { ...createInitialState(), restoredBanner: true };
+    const result = applyStartTimestamp(state, "   ");
+
+    expect(result.state.race.startTimestampMs).toBeNull();
+    expect(result.state.restoredBanner).toBe(true);
+    expect(result.clearRestoredBanner).toBe(false);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(loadPersistedRace()).toBeNull();
   });
 });
 
@@ -145,16 +156,21 @@ describe("updateRaceDraft", () => {
     vi.useRealTimers();
   });
 
-  it("clears showResults, calculatedResults, and debounces persistence by default", async () => {
+  it("clears showResults, calculationSnapshot, resultsStale, and debounces persistence by default", async () => {
     const state = {
       ...createInitialState(),
       showResults: true,
-      calculatedResults: { valid: true, results: [], errors: [] },
+      resultsStale: true,
+      calculationSnapshot: {
+        race: createInitialState().race,
+        computed: { valid: true, results: [], errors: [] },
+      },
     };
     const next = updateRaceDraft(state, (race) => touchRace({ ...race, eventLabel: "Heat 2" }));
 
     expect(next.showResults).toBe(false);
-    expect(next.calculatedResults).toBeNull();
+    expect(next.calculationSnapshot).toBeNull();
+    expect(next.resultsStale).toBe(false);
     expect(next.race.eventLabel).toBe("Heat 2");
     expect(loadPersistedRace()).toBeNull();
 

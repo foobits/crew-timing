@@ -20,7 +20,8 @@ export function createInitialState(): AppState {
     confirmAction: null,
     pendingReferenceLane: null,
     showResults: false,
-    calculatedResults: null,
+    calculationSnapshot: null,
+    resultsStale: false,
     resultsSort: "place",
   };
 }

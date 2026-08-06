@@ -161,6 +161,15 @@ describe("format while typing", () => {
     expect(formatGapWhileTyping("-2.511")).toBe("-2.511");
     expect(formatGapWhileTyping("-123450")).toBe("-1:23.450");
   });
+
+  it("keeps a trailing decimal point while typing fractional seconds", () => {
+    expect(formatGapWhileTyping("12.")).toBe("12.");
+    expect(formatGapWhileTyping("2.")).toBe("2.");
+  });
+
+  it("formats plain decimal digits when a dot is present without a fraction", () => {
+    expect(formatGapWhileTyping("123.")).toBe("123.");
+  });
 });
 
 describe("utility formatting", () => {

@@ -95,7 +95,7 @@ Empty lanes and lanes without gaps are skipped. Validation errors (missing start
 
 ## Reference lane changes
 
-`setReferenceLane` rebases all existing gaps when the operator picks a new reference. If gaps would be invalidated, a confirmation dialog runs first (`confirmAction: "changeRef"`).
+`setReferenceLane` rebases all existing gaps when the operator picks a new reference. If rebasing would produce a negative reference elapsed (new reference impossibly ahead of the old one), judge data is cleared instead. If gaps would be invalidated for other reasons, a confirmation dialog runs first (`confirmAction: "changeRef"`).
 
 ## Removing lanes
 

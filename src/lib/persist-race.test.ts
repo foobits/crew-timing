@@ -143,4 +143,13 @@ describe("parsePersistedRace", () => {
       parsePersistedRace({ lanes: sampleRace().lanes, referenceElapsedMs: "02:23.450" }),
     ).toBeNull();
   });
+
+  it("rejects legacy drafts when reference lane is out of range", () => {
+    expect(
+      parsePersistedRace({
+        lanes: sampleRace().lanes,
+        referenceLane: sampleRace().lanes.length + 1,
+      }),
+    ).toBeNull();
+  });
 });

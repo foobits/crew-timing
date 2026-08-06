@@ -30,8 +30,14 @@ import {
   updateRaceDraft,
 } from "../app/form-sync";
 import { applyLaneGapToRace, isFieldApplyFailure } from "../lib/form-commit";
+import {
+  validateLaneGapInput,
+  validateReferenceElapsedInput,
+  validateStartTimestampInput,
+} from "../lib/field-validation";
 import { clearUndoSnapshot, saveUndoSnapshot } from "../app/state";
 import type { AppState, ResultsSort } from "../app/types";
+import { setInputValidationHint, syncTimeInputValidationHints } from "./input-hints";
 import { announce } from "./toast";
 
 export interface AppActions {
@@ -45,6 +51,30 @@ export interface AppActions {
 
 export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
   const { getState, setState, updateRace, scheduleRender, renderNow, getComputed } = actions;
+
+  function commitReferenceElapsedInput(target: HTMLInputElement, announceError: boolean): boolean {
+    const { state, error } = applyReferenceElapsed(getState(), target.value);
+    if (error) {
+      setInputValidationHint(target, error);
+      if (announceError) announce(error);
+      return false;
+    }
+    setInputValidationHint(target, null);
+    setState(() => state);
+    return true;
+  }
+
+  function commitLaneGapInput(target: HTMLInputElement, laneNum: number, announceError: boolean): boolean {
+    const { state, error } = applyLaneGap(getState(), laneNum, target.value);
+    if (error) {
+      setInputValidationHint(target, error);
+      if (announceError) announce(error);
+      return false;
+    }
+    setInputValidationHint(target, null);
+    setState(() => state);
+    return true;
+  }
 
   function toggleGapSign(laneNum: number): void {
     const gapInput = root.querySelector<HTMLInputElement>(`[data-gap-input="${laneNum}"]`);
@@ -173,6 +203,12 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
 
       if (target.id === "start-ts") {
         applyInputFormat(target, formatTimestampWhileTyping);
+        const validationError = validateStartTimestampInput(target.value);
+        if (validationError) {
+          setInputValidationHint(target, validationError);
+          return;
+        }
+        setInputValidationHint(target, null);
         const { state, error } = applyStartTimestamp(getState(), target.value);
         if (error) return;
         setState(() => state);
@@ -182,17 +218,13 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
       if (target.id === "ref-elapsed") {
         const value = applyInputFormat(target, formatElapsedWhileTyping);
         syncReferenceLaneGapInput(root, getState().race.referenceLane, value);
-        const { state, error } = applyReferenceElapsed(getState(), value);
-        if (error) return;
-        setState(() => state);
+        setInputValidationHint(target, validateReferenceElapsedInput(value));
         return;
       }
 
       if (target.dataset.gapInput && !target.readOnly) {
         applyInputFormat(target, formatGapWhileTyping);
-        const { state, error } = applyLaneGap(getState(), Number(target.dataset.gapInput), target.value);
-        if (error) return;
-        setState(() => state);
+        setInputValidationHint(target, validateLaneGapInput(target.value));
       }
     },
     true,
@@ -207,11 +239,19 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
       }
 
       if (target.id === "start-ts") {
+        const validationError = validateStartTimestampInput(target.value);
+        if (validationError) {
+          setInputValidationHint(target, validationError);
+          announce(validationError);
+          return;
+        }
         const { state, error } = applyStartTimestamp(getState(), target.value);
         if (error) {
+          setInputValidationHint(target, error);
           announce(error);
           return;
         }
+        setInputValidationHint(target, null);
         setState(() => state);
         scheduleRender({ type: "context" });
         return;
@@ -223,13 +263,9 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
       }
 
       if (target.id === "ref-elapsed") {
-        const { state, error } = applyReferenceElapsed(getState(), target.value);
-        if (error) {
-          announce(error);
-          return;
+        if (commitReferenceElapsedInput(target, true)) {
+          scheduleRender({ type: "lane-row", lane: getState().race.referenceLane });
         }
-        setState(() => state);
-        scheduleRender({ type: "lane-row", lane: state.race.referenceLane });
         return;
       }
 
@@ -240,13 +276,9 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
 
       if (target instanceof HTMLInputElement && target.dataset.gapInput) {
         const laneNum = Number(target.dataset.gapInput);
-        const { state, error } = applyLaneGap(getState(), laneNum, target.value);
-        if (error) {
-          announce(error);
-          return;
+        if (commitLaneGapInput(target, laneNum, true)) {
+          scheduleRender({ type: "lane-row", lane: laneNum });
         }
-        setState(() => state);
-        scheduleRender({ type: "lane-row", lane: laneNum });
       }
     },
     true,
@@ -259,16 +291,12 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
       if (!(target instanceof HTMLInputElement)) return;
 
       if (target.id === "ref-elapsed") {
-        const { state, error } = applyReferenceElapsed(getState(), target.value);
-        if (error) return;
-        setState(() => state);
+        commitReferenceElapsedInput(target, false);
         return;
       }
 
       if (target.dataset.gapInput && !target.readOnly) {
-        const { state, error } = applyLaneGap(getState(), Number(target.dataset.gapInput), target.value);
-        if (error) return;
-        setState(() => state);
+        commitLaneGapInput(target, Number(target.dataset.gapInput), false);
       }
     },
     true,
@@ -301,20 +329,34 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
       case "calculate":
         (document.activeElement as HTMLElement | null)?.blur();
         {
-          const { state, errors } = commitAllFormFields(getState(), root);
+          const previous = getState();
+          const { state, errors } = commitAllFormFields(previous, root);
           if (errors.length > 0) {
             announce(errors.join(" "));
+            syncTimeInputValidationHints(root);
+            if (previous.calculationSnapshot?.computed.valid) {
+              setState((s) => ({ ...s, resultsStale: true }));
+              renderNow({ type: "results" });
+            }
             return;
           }
           const computed = computeRace(state.race);
           if (!computed.valid) {
             announce(computed.errors.join(" "));
+            if (previous.calculationSnapshot?.computed.valid) {
+              setState((s) => ({ ...s, resultsStale: true }));
+              renderNow({ type: "results" });
+            }
             return;
           }
           setState(() => ({
             ...state,
             showResults: true,
-            calculatedResults: computed,
+            calculationSnapshot: {
+              race: structuredClone(state.race),
+              computed,
+            },
+            resultsStale: false,
             copiedLanes: new Set(),
           }));
           renderNow({ type: "results" });
@@ -388,6 +430,7 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
   async function handleCopyLane(btn: HTMLButtonElement): Promise<void> {
     const lane = Number(btn.dataset.copyLane);
     const state = getState();
+    if (state.resultsStale) return;
 
     if (state.copiedLanes.has(lane)) {
       setState((s) => {
@@ -415,10 +458,13 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
   }
 
   async function handleCopyAll(): Promise<void> {
-    const computed = getComputed();
-    if (!computed.valid) return;
     const state = getState();
-    const text = formatCopyAll(state.race, sortResults(computed.results, state.resultsSort));
+    const snapshot = state.calculationSnapshot;
+    if (!snapshot?.computed.valid || state.resultsStale) return;
+    const text = formatCopyAll(
+      snapshot.race,
+      sortResults(snapshot.computed.results, state.resultsSort),
+    );
     const ok = await copyText(text);
     announce(ok ? "Copied all results" : "Select and copy manually");
   }
@@ -439,7 +485,8 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         copiedLanes: new Set(),
         contextCollapsed: false,
         showResults: false,
-        calculatedResults: null,
+        calculationSnapshot: null,
+        resultsStale: false,
         confirmAction: null,
         pendingReferenceLane: null,
       }));
@@ -458,7 +505,8 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         race,
         copiedLanes: new Set(),
         showResults: false,
-        calculatedResults: null,
+        calculationSnapshot: null,
+        resultsStale: false,
         confirmAction: null,
         pendingReferenceLane: null,
       }));

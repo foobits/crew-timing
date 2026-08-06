@@ -67,7 +67,8 @@ Ephemeral UI state:
 |-------|------|
 | `race` | Current `RaceDraft` |
 | `showResults` | Whether results section is visible |
-| `calculatedResults` | Snapshot from last successful Calculate (not live draft) |
+| `calculationSnapshot` | Race draft + results from last successful Calculate |
+| `resultsStale` | Prior calculation failed; results shown are outdated |
 | `copiedLanes` | Checklist of lanes marked copied (not persisted) |
 | `contextCollapsed` | Race context accordion |
 | `confirmAction` | Active confirmation dialog (`nextRace`, `clearJudge`, `changeRef`, `removeLane`) |
@@ -99,7 +100,9 @@ Most interactions patch a **slice** of the DOM via `applyRenderScope` in `ui/pat
 
 ### Calculation snapshot
 
-Results are **not** recomputed from the live draft after Calculate. A successful Calculate stores `calculatedResults` (`ComputedRace`); display, Copy All, and sort all read from that snapshot. Draft edits clear the snapshot via `updateRaceDraft` (sets `showResults: false`, `calculatedResults: null`).
+Results are **not** recomputed from the live draft after Calculate. A successful Calculate stores `calculationSnapshot` (race draft + `ComputedRace`); display, Copy All, and sort all read from that snapshot. Draft edits via `updateRaceDraft` clear the snapshot. A failed Calculate while a snapshot exists sets `resultsStale`, shows a persistent warning, and disables copy actions until the next successful Calculate.
+
+Copy All uses the snapshotted race header (event label, start time), not the live draft.
 
 Per-lane copy buttons and Copy All therefore always agree until the operator calculates again.
 
@@ -145,11 +148,13 @@ sequenceDiagram
   User->>bind-events: tap Calculate
   bind-events->>form-sync: commitAllFormFields(DOM)
   form-sync->>lib: apply*ToRace per field
-  alt commit or compute errors
-    bind-events->>User: validation toast
+  alt commit or compute errors with prior snapshot
+    bind-events->>bind-events: setState resultsStale
+    bind-events->>patch-dom: renderNow(results)
+    bind-events->>User: stale banner, copy disabled
   else valid
     bind-events->>lib: computeRace(race)
-    bind-events->>bind-events: setState calculatedResults, showResults
+    bind-events->>bind-events: setState calculationSnapshot, showResults
     bind-events->>patch-dom: renderNow(results)
     patch-dom->>User: updated #results-card
   end
