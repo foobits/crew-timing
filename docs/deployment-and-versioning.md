@@ -8,6 +8,31 @@ https://foobits.github.io/crew-timing/
 
 Repository: `foobits/crew-timing`. Pages source: **GitHub Actions** (not `gh-pages` branch).
 
+## Branch and merge workflow
+
+**Do not push routine changes directly to `main`.** Every production change must go through a pull request, even when `main` is not branch-protected.
+
+`main` is the release branch: merging (or pushing) to `main` triggers the **Deploy to GitHub Pages** workflow and updates the live site at the URL above. There is no staging environment, so a direct push skips review and ships immediately.
+
+### Required flow
+
+1. Branch from `main` (e.g. `favicon/luc-oar`, `fix/input-validation`).
+2. Commit on the feature branch.
+3. Push and open a PR using the [pull request template](../.github/pull_request_template.md).
+4. Wait for the **Deploy to GitHub Pages** workflow to pass on the PR branch if CI runs there, or confirm checks are green before merge (see [Testing](testing.md)).
+5. **Merge the PR into `main`** — deploy runs automatically on merge.
+
+### Do not
+
+- Commit and push directly to `main` for feature work, fixes, or assets (including favicons and config).
+- Merge without a green CI run when tests apply to the change.
+
+### Exceptions
+
+Direct commits to `main` are only for emergencies agreed out of band (e.g. revert of a broken deploy). Prefer revert PRs when possible.
+
+Contributors and automation should default to **feature branch → PR → merge**, not **commit → push `main` → deploy**.
+
 ## CI workflow
 
 File: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)

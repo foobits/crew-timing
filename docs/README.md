@@ -12,7 +12,7 @@ Detailed docs for contributors and maintainers. The root [README](../README.md) 
 | [Codebase guide](codebase-guide.md) | Directory layout, modules, extension points |
 | [Domain & computation](domain-and-computation.md) | Race model, parsing, timestamp math |
 | [Testing](testing.md) | Unit tests, E2E, fixtures, coverage, CI |
-| [Deployment & versioning](deployment-and-versioning.md) | GitHub Pages, CI pipeline, build labels |
+| [Deployment & versioning](deployment-and-versioning.md) | GitHub Pages, branch/PR workflow, CI pipeline, build labels |
 | [Copied lane feedback](copied-lane-feedback.md) | Results copy checklist UX spec |
 
 ## Recommended reading order
@@ -22,6 +22,7 @@ Detailed docs for contributors and maintainers. The root [README](../README.md) 
 3. **Codebase guide** — where to change things safely.
 4. **Domain & computation** — if you touch parsing or results math.
 5. **Testing** — before opening a PR.
+6. **Deployment & versioning** — branch from `main`, merge via PR; never push routine work directly to `main`.
 
 ## Conventions
 
