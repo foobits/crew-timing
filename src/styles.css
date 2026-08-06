@@ -286,15 +286,19 @@ button:focus-visible {
 }
 
 .gap-input-wrap {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: stretch;
   min-width: 0;
   gap: 6px;
 }
 
+.gap-input-wrap:not(:has(.gap-sign-btn)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .gap-input-wrap .gap-field-hint {
-  flex: 1 1 100%;
+  grid-column: 1 / -1;
   margin: 0;
 }
 
@@ -326,8 +330,8 @@ button:focus-visible {
 }
 
 .gap-input-wrap .lane-gap-input {
-  flex: 1 1 auto;
   min-width: 0;
+  width: auto;
 }
 
 .lane-gap-input,
