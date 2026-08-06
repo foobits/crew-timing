@@ -14,12 +14,12 @@ export default defineConfig({
   projects: [
     {
       name: "desktop-chrome",
-      testMatch: /(?:desktop|fixture)\.spec\.ts/,
+      testMatch: /(?:desktop|fixture|layout)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "mobile-safari",
-      testMatch: /mobile\.spec\.ts/,
+      testMatch: /(?:mobile|layout)\.spec\.ts/,
       use: { ...devices["iPhone 13"], serviceWorkers: "block" },
     },
   ],
