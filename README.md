@@ -104,7 +104,7 @@ src/
   test/                Shared test fixtures and bind-app harness
 e2e/                   Playwright desktop + mobile flows
 fixtures/              Sample race input/outputs for manual regression
-docs/                  UX and behavior design notes (not all implemented)
+docs/                  UX specs and engineering docs (start at docs/README.md)
 ```
 
 Rendering is scoped (`render-scope.ts`) so most interactions patch only the affected section (context, lane row, results, etc.) rather than re-rendering the whole app.
