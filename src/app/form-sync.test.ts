@@ -11,7 +11,6 @@ import {
   commitAllFormFields,
   updateRaceDraft,
 } from "./form-sync";
-import { formatGapWhileTyping } from "../lib/time";
 
 describe("applyInputFormat", () => {
   it("returns the formatted value without mutating the input when unchanged", () => {

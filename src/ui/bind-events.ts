@@ -50,7 +50,7 @@ export interface AppActions {
 }
 
 export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
-  const { getState, setState, updateRace, scheduleRender, renderNow, getComputed } = actions;
+  const { getState, setState, updateRace, scheduleRender, renderNow } = actions;
 
   function commitReferenceElapsedInput(target: HTMLInputElement, announceError: boolean): boolean {
     const { state, error } = applyReferenceElapsed(getState(), target.value);
@@ -238,7 +238,7 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         return;
       }
 
-      if (target.id === "start-ts") {
+      if (target.id === "start-ts" && target instanceof HTMLInputElement) {
         const validationError = validateStartTimestampInput(target.value);
         if (validationError) {
           setInputValidationHint(target, validationError);
@@ -262,7 +262,7 @@ export function bindEventsOnce(root: HTMLElement, actions: AppActions): void {
         return;
       }
 
-      if (target.id === "ref-elapsed") {
+      if (target.id === "ref-elapsed" && target instanceof HTMLInputElement) {
         if (commitReferenceElapsedInput(target, true)) {
           scheduleRender({ type: "lane-row", lane: getState().race.referenceLane });
         }

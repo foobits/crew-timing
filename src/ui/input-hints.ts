@@ -56,7 +56,9 @@ export function syncTimeInputValidationHints(root: ParentNode): void {
     setInputValidationHint(ref, validateReferenceElapsedInput(ref.value));
   }
 
-  for (const gap of root.querySelectorAll<HTMLInputElement>("[data-gap-input]:not([readonly])")) {
+  for (const gap of Array.from(
+    root.querySelectorAll<HTMLInputElement>("[data-gap-input]:not([readonly])"),
+  )) {
     setInputValidationHint(gap, validateLaneGapInput(gap.value));
   }
 }

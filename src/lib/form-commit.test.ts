@@ -109,9 +109,10 @@ describe("applyLaneGapToRace", () => {
   it("returns error when an explicit signed gap parses without signed metadata", () => {
     vi.spyOn(time, "parseGap").mockReturnValue({ ok: true, value: 1_000 });
     const result = applyLaneGapToRace(createEmptyRace(), 2, "+1.000");
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toBe("Invalid gap format.");
+    expect(isFieldApplyFailure(result)).toBe(true);
+    if (isFieldApplyFailure(result)) {
+      expect(result.error).toBe("Invalid gap format.");
+    }
   });
 });
 
