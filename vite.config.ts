@@ -18,7 +18,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "icons.svg"],
+      includeAssets: ["favicon.svg"],
       manifest: {
         name: "Race Timing Calculator",
         short_name: "Race Timing",
@@ -30,7 +30,7 @@ export default defineConfig({
         start_url: "./",
         icons: [
           {
-            src: "icons.svg",
+            src: "favicon.svg",
             sizes: "any",
             type: "image/svg+xml",
             purpose: "any maskable",
