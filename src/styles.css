@@ -17,6 +17,11 @@
   --radius: 10px;
   --touch: 48px;
   --control-height: 44px;
+  --app-meta-offset: 24px;
+  --footer-actions-stack: 120px;
+  --app-bottom-reserve: calc(
+    var(--app-meta-offset) + var(--footer-actions-stack) + 16px + env(safe-area-inset-bottom, 0px)
+  );
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
   line-height: 1.4;
@@ -39,7 +44,7 @@ body {
 #app {
   max-width: 640px;
   margin: 0 auto;
-  padding: 12px 12px 120px;
+  padding: 12px 12px var(--app-bottom-reserve);
 }
 
 h1 {
@@ -602,7 +607,7 @@ button:focus-visible {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 24px;
+  bottom: var(--app-meta-offset);
   background: rgba(247, 250, 252, 0.96);
   border-top: 1px solid var(--border);
   padding: 12px;
@@ -636,7 +641,7 @@ button:focus-visible {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 96px;
+  bottom: calc(var(--app-meta-offset) + var(--footer-actions-stack) + 16px);
   transform: translateX(-50%);
   background: var(--text);
   color: #fff;

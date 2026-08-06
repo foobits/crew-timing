@@ -167,13 +167,16 @@ export function applyRenderScope(
       return getComputedRace(state);
     case "context":
       patchContext(root, state, stale);
+      patchFooter(state);
       return getComputedRace(state);
     case "lane-row":
       patchLaneRow(root, state, scope.lane);
       patchLaneCountControls(root, state);
+      patchFooter(state);
       return getComputedRace(state);
     case "lanes":
       patchLanes(root, state);
+      patchFooter(state);
       return getComputedRace(state);
     case "results": {
       invalidateComputedRace();

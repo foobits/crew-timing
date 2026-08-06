@@ -96,3 +96,79 @@ export async function expectNoReferenceElapsedError(page: Page): Promise<void> {
     expect(messages.join(" ")).not.toMatch(/Enter reference elapsed time/i);
   }
 }
+
+export async function expectGapInputWrapUsesGrid(page: Page, lane: number): Promise<void> {
+  const display = await page
+    .locator(`.lane-row[data-lane="${lane}"] .gap-input-wrap`)
+    .evaluate((el) => getComputedStyle(el).display);
+  expect(display).toBe("grid");
+}
+
+export async function expectGapSignAndInputSameRow(
+  page: Page,
+  lane: number,
+  maxTopDeltaPx = 4,
+): Promise<void> {
+  const sign = page.locator(`[data-gap-sign="${lane}"]`);
+  const input = page.locator(`[data-gap-input="${lane}"]`);
+  await expect(sign).toBeVisible();
+  await expect(input).toBeVisible();
+
+  const tops = await page.evaluate((laneNum) => {
+    const signEl = document.querySelector(`[data-gap-sign="${laneNum}"]`);
+    const inputEl = document.querySelector(`[data-gap-input="${laneNum}"]`);
+    if (!signEl || !inputEl) return null;
+    return {
+      signTop: signEl.getBoundingClientRect().top,
+      inputTop: inputEl.getBoundingClientRect().top,
+    };
+  }, lane);
+
+  expect(tops).not.toBeNull();
+  expect(Math.abs(tops!.signTop - tops!.inputTop)).toBeLessThanOrEqual(maxTopDeltaPx);
+}
+
+export async function expectLaneRowHeightsSimilar(
+  page: Page,
+  laneA: number,
+  laneB: number,
+  maxHeightDeltaPx = 8,
+): Promise<void> {
+  const heights = await page.evaluate(
+    ({ a, b }) => {
+      const rowA = document.querySelector(`.lane-row[data-lane="${a}"]`);
+      const rowB = document.querySelector(`.lane-row[data-lane="${b}"]`);
+      if (!rowA || !rowB) return null;
+      return {
+        a: rowA.getBoundingClientRect().height,
+        b: rowB.getBoundingClientRect().height,
+      };
+    },
+    { a: laneA, b: laneB },
+  );
+
+  expect(heights).not.toBeNull();
+  expect(Math.abs(heights!.a - heights!.b)).toBeLessThanOrEqual(maxHeightDeltaPx);
+}
+
+export async function expectVisibleAboveFooter(page: Page, selector: string): Promise<void> {
+  await page.locator(selector).scrollIntoViewIfNeeded();
+
+  const result = await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    const footer = document.getElementById("footer-actions");
+    if (!el || !footer) {
+      return { ok: false, gap: Number.NaN };
+    }
+
+    const elementRect = el.getBoundingClientRect();
+    const footerRect = footer.getBoundingClientRect();
+    const gap = footerRect.top - elementRect.bottom;
+    return { ok: gap >= -2, gap };
+  }, selector);
+
+  expect(
+    result.ok,
+    `expected ${selector} above #footer-actions (gap=${result.gap}px)`,
+  ).toBe(true);
+}

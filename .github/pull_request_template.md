@@ -15,4 +15,4 @@ Each merge to `main` gets a new footer version automatically (`v{major}.{minor}.
 
 Mobile Safari tests are the **CI source of truth** (Ubuntu + Playwright WebKit). On macOS 26+, local mobile E2E may **skip** when WebKit cannot reach the preview server — that is an environment limitation, not a product failure.
 
-Before merging, confirm the GitHub Actions **Deploy to GitHub Pages** workflow is green, including **12/12 E2E** (8 desktop + 4 mobile).
+Before merging, confirm the GitHub Actions **Deploy to GitHub Pages** workflow is green, including **20/20 E2E** (12 desktop + 8 mobile).

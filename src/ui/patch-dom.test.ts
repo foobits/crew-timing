@@ -266,6 +266,10 @@ describe("applyRenderScope", () => {
 
     applyRenderScope(root, sampleAppState({ contextCollapsed: true }), { type: "context" });
     expect(root.querySelector("#context-card")?.classList.contains("collapsed")).toBe(true);
+    expect(document.getElementById("footer-actions")).not.toBeNull();
+
+    applyRenderScope(root, createInitialState(), { type: "context" });
+    expect(document.getElementById("footer-actions")).toBeNull();
 
     applyRenderScope(root, sampleAppState(), { type: "lanes" });
     expect(root.querySelectorAll(".lane-row").length).toBe(8);

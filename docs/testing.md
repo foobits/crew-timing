@@ -5,7 +5,7 @@
 | Layer | Tool | Location | Count (approx.) |
 |-------|------|----------|-----------------|
 | Unit | Vitest + happy-dom | `src/**/*.test.ts` | 264 |
-| E2E | Playwright | `e2e/*.spec.ts` | 12 |
+| E2E | Playwright | `e2e/*.spec.ts` | 16 |
 | Fixture contract | Playwright | `e2e/fixture.spec.ts` | 1 scenario |
 
 CI runs **`npm run test:coverage`** then **`npm run test:e2e`** before every deploy.
@@ -75,14 +75,14 @@ E2E builds production output and serves via `vite preview` on port **4173** (see
 
 | Project | Browser | Specs |
 |---------|---------|-------|
-| `desktop-chrome` | Desktop Chrome | `desktop.spec.ts`, `fixture.spec.ts` |
-| `mobile-safari` | iPhone 13 WebKit | `mobile.spec.ts` |
+| `desktop-chrome` | Desktop Chrome | `desktop.spec.ts`, `fixture.spec.ts`, `layout.spec.ts` |
+| `mobile-safari` | iPhone 13 WebKit | `mobile.spec.ts`, `layout.spec.ts` |
 
 ### Mobile CI vs local
 
 - **CI (Ubuntu):** WebKit mobile tests run and are authoritative.
 - **Local macOS 26+:** WebKit may fail to reach preview server — `webkit-probe.ts` skips mobile specs with an explicit message.
-- PR template expects **12/12 E2E** green on GitHub Actions before merge.
+- PR template expects **20/20 E2E** green on GitHub Actions before merge (16 unique tests; layout specs run on desktop and mobile).
 
 ### Helpers (`e2e/helpers.ts`)
 
@@ -94,6 +94,10 @@ E2E builds production output and serves via `vite preview` on port **4173** (see
 | `calculate` | Tap Calculate, scroll to results |
 | `copyLaneTimestamp` / `unmarkLaneCopy` | Copy checklist flows |
 | `expectLaneCopied` / `expectLaneNotCopied` | Green card assertions |
+| `expectGapInputWrapUsesGrid` | Split-lane gap control uses CSS grid |
+| `expectGapSignAndInputSameRow` | ± button and gap input share one row |
+| `expectLaneRowHeightsSimilar` | Reference vs split lane row height parity |
+| `expectVisibleAboveFooter` | Element clears fixed footer stack when scrolled |
 
 ### What E2E catches that unit tests miss
 
