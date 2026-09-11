@@ -90,10 +90,14 @@ export function applyLaneGapToRace(
 
   if (hasExplicitSign) {
     const parsed = parseGap(trimmed);
-    if (isParseFailure(parsed) || !parsed.signed) {
-      return { ok: false, race, error: isParseFailure(parsed) ? parsed.error : "Invalid gap format." };
+    if (isParseFailure(parsed)) {
+      return { ok: false, race, error: parsed.error };
+    }
+    if (!parsed.signed) {
+      return { ok: false, race, error: "Invalid gap format." };
     }
 
+    const { signed } = parsed;
     return {
       ok: true,
       race: touchRace({
@@ -102,8 +106,8 @@ export function applyLaneGapToRace(
           entry.lane === laneNum
             ? {
                 ...entry,
-                gapMs: parsed.signed.ms,
-                gapNegative: parsed.signed.negative,
+                gapMs: signed.ms,
+                gapNegative: signed.negative,
                 status: "active",
               }
             : entry,
